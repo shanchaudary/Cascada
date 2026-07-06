@@ -1,0 +1,135 @@
+# Cascada — Local Development Infrastructure
+# PostgreSQL 16 + Apache AGE + Redis 7 + Temporal.io
+# Usage: docker compose up -d
+
+services:
+  # ============================================================================
+  # PostgreSQL 16 with Apache AGE graph extension
+  # ============================================================================
+  postgres:
+    image: apache/age:PG16-v1.5.0
+    container_name: cascada-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: cascada
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cascada_dev_2024}
+      POSTGRES_DB: cascada
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/db-init.sql:/docker-entrypoint-initdb.d/01-init-age.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cascada -d cascada"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - cascada-network
+
+  # ============================================================================
+  # Redis 7 — caching, job queues, session store, rate limiting
+  # ============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: cascada-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cascada-network
+
+  # ============================================================================
+  # Temporal — durable workflow execution
+  # ============================================================================
+  temporal-postgres:
+    image: postgres:16-alpine
+    container_name: cascada-temporal-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: temporal
+      POSTGRES_PASSWORD: ${TEMPORAL_POSTGRES_PASSWORD:-temporal_dev_2024}
+      POSTGRES_DB: temporal
+    volumes:
+      - temporal_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U temporal -d temporal"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - cascada-network
+
+  temporal:
+    image: temporalio/auto-setup:1.26.1
+    container_name: cascada-temporal
+    restart: unless-stopped
+    ports:
+      - "7233:7233"
+      - "8233:8233"
+    environment:
+      - DB=postgresql
+      - DB_PORT=5432
+      - POSTGRES_USER=temporal
+      - POSTGRES_PWD=${TEMPORAL_POSTGRES_PASSWORD:-temporal_dev_2024}
+      - POSTGRES_SEEDS=temporal-postgres
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+    depends_on:
+      temporal-postgres:
+        condition: service_healthy
+    volumes:
+      - ./scripts/temporal-dynamic-config.yaml:/etc/temporal/config/dynamicconfig/development-sql.yaml
+    healthcheck:
+      test: ["CMD", "tctl", "--address", "temporal:7233", "cluster", "health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    networks:
+      - cascada-network
+
+  temporal-admin-tools:
+    image: temporalio/admin-tools:1.26.1
+    container_name: cascada-temporal-admin
+    restart: unless-stopped
+    environment:
+      - TEMPORAL_CLI_ADDRESS=temporal:7233
+    depends_on:
+      - temporal
+    networks:
+      - cascada-network
+
+  # ============================================================================
+  # Mailpit — local SMTP testing (replaces Resend in dev)
+  # ============================================================================
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: cascada-mailpit
+    restart: unless-stopped
+    ports:
+      - "1025:1025"  # SMTP
+      - "8025:8025"  # Web UI
+    networks:
+      - cascada-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  temporal_pg_data:
+    driver: local
+
+networks:
+  cascada-network:
+    driver: bridge

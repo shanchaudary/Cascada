@@ -1,0 +1,73 @@
+{
+  "name": "cascada",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cascada — Food Manufacturing Regulatory Cascade Impact Analysis Platform",
+  "license": "UNLICENSED",
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "prisma generate",
+    "db:validate": "prisma validate",
+    "db:migrate": "prisma migrate dev --name init",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:studio": "prisma studio",
+    "db:reset": "prisma migrate reset --force",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f",
+    "docker:reset": "docker compose down -v && docker compose up -d"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.8",
+    "@ai-sdk/openai": "^4.0.8",
+    "@prisma/client": "^6.10.1",
+    "@react-pdf/renderer": "^4.3.0",
+    "@tanstack/react-query": "^5.81.5",
+    "ai": "^7.0.15",
+    "ioredis": "^5.6.1",
+    "next": "^15.3.4",
+    "next-auth": "^5.0.0-beta.29",
+    "pino": "^9.7.0",
+    "pino-pretty": "^13.0.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "recharts": "^2.15.4",
+    "resend": "^4.6.0",
+    "stripe": "^18.2.1",
+    "zod": "^3.25.67",
+    "zustand": "^5.0.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.10",
+    "@types/node": "^24.0.10",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitest/coverage-v8": "^3.2.4",
+    "eslint": "^9.30.1",
+    "eslint-config-next": "^15.3.4",
+    "postcss": "^8.5.6",
+    "prettier": "^3.6.2",
+    "prisma": "^6.10.1",
+    "tailwindcss": "^4.1.10",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

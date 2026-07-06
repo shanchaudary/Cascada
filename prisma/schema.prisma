@@ -1,0 +1,772 @@
+// Cascada — Database Schema
+// Single source of truth: docs/CONTRACT.md Section 3
+// PostgreSQL 16 + Apache AGE graph extension
+// Multi-tenancy: shared DB, tenant-scoped queries with RLS
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_DIRECT")
+}
+
+// ============================================================================
+// 3.1 Tenant Management
+// ============================================================================
+
+model Tenant {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  plan      Plan     @default(DIAGNOSTIC)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users              User[]
+  erpConnections     ErpConnection[]
+  ingredients        Ingredient[]
+  formulations       Formulation[]
+  products           Product[]
+  customers          Customer[]
+  suppliers          Supplier[]
+  cascadeGraphs      CascadeGraph[]
+  decisionPkgs       DecisionPackage[]
+  diagnostics        Diagnostic[]
+  workflowInstances  WorkflowInstance[]
+
+  @@map("tenants")
+}
+
+enum Plan {
+  DIAGNOSTIC // Paid diagnostic only
+  SCOUT      // $36K/yr - monitoring + alerts
+  PRO        // $84K/yr - cascade analysis + query agent
+  COMMAND    // $156K/yr - full platform + workflow orchestration
+}
+
+// ============================================================================
+// 3.2 User & Auth
+// ============================================================================
+
+model User {
+  id        String   @id @default(cuid())
+  tenantId  String
+  email     String
+  name      String
+  role      UserRole @default(VIEWER)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, email])
+  @@map("users")
+}
+
+enum UserRole {
+  SUPER_ADMIN   // Platform admin
+  TENANT_ADMIN  // Company admin
+  COMPLIANCE    // Compliance team
+  EXECUTIVE     // C-suite (read-only + decision)
+  VIEWER        // Read-only
+}
+
+// ============================================================================
+// 3.3 ERP Connections
+// ============================================================================
+
+model ErpConnection {
+  id               String     @id @default(cuid())
+  tenantId         String
+  erpType          ErpType
+  connectionName   String
+  connectionString String     @db.Text // Encrypted in application layer
+  authConfig       Json       // Encrypted OAuth/token config
+  syncState        Json       // Last sync watermark, cursor positions
+  syncStatus       SyncStatus @default(DISCONNECTED)
+  lastSyncAt       DateTime?
+  lastSyncError    String?
+  fieldMappings    Json       // Custom field mapping config
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  syncLogs SyncLog[]
+
+  @@map("erp_connections")
+}
+
+enum ErpType {
+  NETSUITE
+  SAP_B1
+  DYNAMICS_365_BC
+  INFOR_M3
+  EPICOR_P21
+}
+
+enum SyncStatus {
+  DISCONNECTED
+  CONNECTED
+  SYNCING
+  ERROR
+  RATE_LIMITED
+}
+
+model SyncLog {
+  id              String        @id @default(cuid())
+  erpConnectionId String
+  syncType        String        // "full" | "incremental"
+  entityType      String        // "items" | "boms" | "suppliers" | "customers"
+  recordsTotal    Int
+  recordsSuccess  Int
+  recordsFailed   Int
+  errorDetails    Json?
+  startedAt       DateTime
+  completedAt     DateTime?
+  duration        Int?          // milliseconds
+
+  erpConnection ErpConnection @relation(fields: [erpConnectionId], references: [id])
+
+  @@map("sync_logs")
+}
+
+// ============================================================================
+// 3.4 Ingredients & Formulations (from ERP)
+// ============================================================================
+
+model Ingredient {
+  id              String    @id @default(cuid())
+  tenantId        String
+  erpId           String?   // ID in the customer's ERP
+  name            String
+  alternateNames  String[]  // Common aliases for matching
+  casNumber       String?   // Chemical Abstracts Service number
+  eenumber        String?   // European E-number
+  category        String?   // "dye" | "preservative" | "flavor" | "emulsifier" | etc.
+  isSynthetic     Boolean?
+  sourceType      String?   // "petroleum" | "plant" | "animal" | "mineral" | "synthetic"
+  allergenFlags   String[]  // ["dairy", "soy", "gluten", etc.]
+  supplierIds     String[]  // Links to Supplier records
+  metadata        Json?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  tenant                Tenant                @relation(fields: [tenantId], references: [id])
+  formulationItems      FormulationItem[]
+  ruleSubstances        RuleSubstance[]
+  substitutionOptions   SubstitutionOption[]  @relation("OriginalSub")
+  substituteOptionsFor  SubstitutionOption[]  @relation("SubstituteSub")
+
+  @@unique([tenantId, name])
+  @@map("ingredients")
+}
+
+model Formulation {
+  id            String            @id @default(cuid())
+  tenantId      String
+  erpId         String?           // BOM ID from ERP
+  name          String
+  description   String?
+  version       Int               @default(1)
+  status        FormulationStatus @default(DRAFT)
+  batchSize     Float?
+  batchSizeUnit String?
+  totalCost     Decimal?          @db.Decimal(12, 4)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  tenant   Tenant              @relation(fields: [tenantId], references: [id])
+  items    FormulationItem[]
+  products ProductFormulation[]
+
+  @@unique([tenantId, erpId, version])
+  @@map("formulations")
+}
+
+enum FormulationStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+  UNDER_REVIEW
+}
+
+model FormulationItem {
+  id                   String  @id @default(cuid())
+  formulationId        String
+  ingredientId         String
+  quantity             Decimal @db.Decimal(12, 6)
+  unit                 String  // "kg" | "g" | "mg" | "L" | "mL" | "%"
+  percentage           Decimal? @db.Decimal(8, 4)
+  isAlternate          Boolean @default(false)
+  replacesIngredientId String?
+  sortOrder            Int
+
+  formulation Formulation @relation(fields: [formulationId], references: [id], onDelete: Cascade)
+  ingredient  Ingredient  @relation(fields: [ingredientId], references: [id])
+
+  @@map("formulation_items")
+}
+
+model SubstitutionOption {
+  id                     String    @id @default(cuid())
+  tenantId               String
+  originalIngredientId   String
+  substituteIngredientId String
+  substitutionCost       Decimal?  @db.Decimal(12, 4) // Per unit cost delta
+  feasibilityScore       Decimal?  @db.Decimal(3, 2)  // 0-1, assessed by R&D
+  sensoryImpact          String?   // "none" | "minor" | "moderate" | "significant"
+  shelfLifeImpact        String?   // "none" | "minor" | "reduced_X_months"
+  regulatoryRisk         String?   // "none" | "review_needed" | "restricted_in_some_jurisdictions"
+  notes                  String?
+  source                 String?   // "ai_suggestion" | "rd_validated" | "supplier_recommended"
+  createdAt              DateTime  @default(now())
+
+  originalIngredient   Ingredient @relation("OriginalSub", fields: [originalIngredientId], references: [id])
+  substituteIngredient Ingredient @relation("SubstituteSub", fields: [substituteIngredientId], references: [id])
+
+  @@index([originalIngredientId])
+  @@index([substituteIngredientId])
+
+  @@map("substitution_options")
+}
+
+// ============================================================================
+// 3.5 Products & Customers
+// ============================================================================
+
+model Product {
+  id            String    @id @default(cuid())
+  tenantId      String
+  erpId         String?   // SKU from ERP
+  name          String
+  sku           String
+  category      String?   // Product category
+  brand         String?
+  markets       String[]  // States/countries where sold
+  retailers     String[]  // ["walmart", "target", "kroger", etc.]
+  isActive      Boolean   @default(true)
+  annualVolume  Decimal?  @db.Decimal(12, 2) // Units per year
+  annualRevenue Decimal?  @db.Decimal(12, 2)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  tenant           Tenant             @relation(fields: [tenantId], references: [id])
+  formulations     ProductFormulation[]
+  customerProducts CustomerProduct[]
+
+  @@unique([tenantId, sku])
+  @@map("products")
+}
+
+model ProductFormulation {
+  id            String   @id @default(cuid())
+  productId     String
+  formulationId String
+  isCurrent     Boolean  @default(true)
+  effectiveDate DateTime @default(now())
+
+  product     Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  formulation Formulation @relation(fields: [formulationId], references: [id])
+
+  @@map("product_formulations")
+}
+
+model Customer {
+  id           String       @id @default(cuid())
+  tenantId     String
+  erpId        String?
+  name         String
+  type         CustomerType
+  requirements Json?        // Retailer-specific compliance requirements
+  contactEmail String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  tenant           Tenant          @relation(fields: [tenantId], references: [id])
+  customerProducts CustomerProduct[]
+
+  @@unique([tenantId, name])
+  @@map("customers")
+}
+
+enum CustomerType {
+  RETAILER
+  DISTRIBUTOR
+  FOODSERVICE
+  PRIVATE_LABEL
+  DIRECT_TO_CONSUMER
+}
+
+model CustomerProduct {
+  id               String  @id @default(cuid())
+  customerId       String
+  productId        String
+  specVersion      String?
+  specRequirements Json?   // Customer-specific spec requirements
+  isActive         Boolean @default(true)
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("customer_products")
+}
+
+model Supplier {
+  id             String    @id @default(cuid())
+  tenantId       String
+  erpId          String?
+  name           String
+  contactEmail   String?
+  certifications String[]
+  ingredientIds  String[]  // Ingredients they supply
+  riskScore      Decimal?  @db.Decimal(3, 2) // 0-1 supply risk
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, name])
+  @@map("suppliers")
+}
+
+// ============================================================================
+// 3.6 Regulatory Rules (The Moat)
+// ============================================================================
+
+model RegulatorySource {
+  id              String      @id @default(cuid())
+  sourceType      SourceType
+  jurisdiction    String      // "US", "US-CA", "US-TX", "US-NY", etc.
+  name            String      // "California AB 418", "Texas SB 25", etc.
+  sourceId        String?     // LegiScan bill ID, Federal Register document ID, etc.
+  sourceUrl       String?
+  status          SourceStatus
+  introducedDate  DateTime?
+  enactedDate     DateTime?
+  effectiveDate   DateTime?
+  fullText        String?     @db.Text
+  rawApiResponse  Json?       // Full API response for audit trail
+  processedAt     DateTime?
+  processingError String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  rules Rule[]
+
+  @@map("regulatory_sources")
+}
+
+enum SourceType {
+  STATE_BILL
+  FEDERAL_BILL
+  FDA_RULE
+  FDA_GUIDANCE
+  FDA_PROPOSED_RULE
+  FEDERAL_REGISTER_NOTICE
+  RETAILER_MANDATE
+  INTERNATIONAL_REGULATION
+}
+
+enum SourceStatus {
+  DETECTED     // New, not yet processed
+  PROCESSING   // LLM parsing in progress
+  PARSED       // LLM extraction complete
+  SME_REVIEW   // Awaiting SME validation
+  SME_APPROVED // SME has validated
+  SME_REJECTED // SME found errors
+  ACTIVE       // Live and enforced
+  REPEALED     // No longer in effect
+  SUPERSEDED   // Replaced by newer regulation
+  ENJOINDED    // Court-blocked
+}
+
+model Rule {
+  id                String   @id @default(cuid())
+  sourceId          String
+  version           Int      @default(1)
+  previousVersionId String?  // Link to previous version of this rule
+  jurisdiction      String
+  ruleType          RuleType
+  description       String   @db.Text
+  effectiveDate     DateTime?
+  complianceDate    DateTime? // Deadline for compliance
+  gracePeriodDays   Int?
+  penaltyType       String?   // "civil" | "criminal" | "product_ban" | "fine_per_violation"
+  penaltyAmount     Decimal?  @db.Decimal(12, 2)
+  exemptions        Json?     // Product/category exemptions
+  notes             String?   @db.Text
+  smeValidatedBy    String?   // User ID of SME reviewer
+  smeValidatedAt    DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  source          RegulatorySource @relation(fields: [sourceId], references: [id])
+  substances      RuleSubstance[]
+  cascadeTriggers CascadeTrigger[]
+
+  @@unique([sourceId, version])
+  @@map("rules")
+}
+
+enum RuleType {
+  BAN
+  WARNING_LABEL
+  DISCLOSURE
+  PHASE_OUT
+  CONCENTRATION_LIMIT
+  REPORTING
+  CERTIFICATION
+  INGREDIENT_REVIEW
+  MARKET_WITHDRAWAL
+}
+
+model RuleSubstance {
+  id              String   @id @default(cuid())
+  ruleId          String
+  ingredientId    String?  // Link to ingredient if matched
+  substanceName   String   // Name as it appears in the regulation
+  substanceType   String   // "specific_chemical" | "chemical_class" | "functional_category"
+  casNumber       String?
+  eenumber        String?
+  threshold       Decimal? @db.Decimal(12, 6) // Concentration threshold if applicable
+  thresholdUnit   String?  // "ppm" | "%" | "mg/kg" | etc.
+  productScope    Json?    // Product categories this applies to
+  isMatched       Boolean  @default(false) // Has this been matched to an Ingredient?
+  matchConfidence Decimal? @db.Decimal(3, 2) // 0-1 confidence of ingredient match
+  matchMethod     String?  // "exact" | "alias" | "cas_number" | "llm_inferred" | "manual"
+
+  rule       Rule       @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  ingredient Ingredient? @relation(fields: [ingredientId], references: [id])
+
+  @@map("rule_substances")
+}
+
+// ============================================================================
+// 3.7 Cascade Engine
+// ============================================================================
+
+model CascadeGraph {
+  id            String   @id @default(cuid())
+  tenantId      String
+  version       Int      @default(1)
+  nodeCount     Int      @default(0)
+  edgeCount     Int      @default(0)
+  lastRebuiltAt DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant   Tenant           @relation(fields: [tenantId], references: [id])
+  nodes    CascadeNode[]
+  edges    CascadeEdge[]
+  triggers CascadeTrigger[]
+
+  @@map("cascade_graphs")
+}
+
+model CascadeNode {
+  id         String          @id @default(cuid())
+  graphId    String
+  nodeType   CascadeNodeType
+  entityId   String          // ID of the entity this node represents
+  label      String
+  properties Json            // Node-specific properties
+  riskScore  Decimal?        @db.Decimal(5, 4) // 0-1
+  createdAt  DateTime        @default(now())
+
+  graph    CascadeGraph  @relation(fields: [graphId], references: [id], onDelete: Cascade)
+  outEdges  CascadeEdge[]    @relation("SourceNode")
+  inEdges   CascadeEdge[]    @relation("TargetNode")
+  impacts   CascadeImpact[]
+
+  @@unique([graphId, nodeType, entityId])
+  @@map("cascade_nodes")
+}
+
+enum CascadeNodeType {
+  INGREDIENT
+  FORMULATION
+  PRODUCT
+  CUSTOMER
+  REGULATION
+  RETAILER_REQUIREMENT
+  SUPPLIER
+}
+
+model CascadeEdge {
+  id           String          @id @default(cuid())
+  graphId      String
+  sourceNodeId String
+  targetNodeId String
+  edgeType     CascadeEdgeType
+  properties   Json            // Edge-specific properties (e.g., concentration, contract terms)
+  strength     Decimal?        @db.Decimal(3, 2) // 0-1, how strong is this dependency
+  validFrom    DateTime?
+  validTo      DateTime?
+  createdAt    DateTime        @default(now())
+
+  graph      CascadeGraph @relation(fields: [graphId], references: [id], onDelete: Cascade)
+  sourceNode CascadeNode  @relation("SourceNode", fields: [sourceNodeId], references: [id], onDelete: Cascade)
+  targetNode CascadeNode  @relation("TargetNode", fields: [targetNodeId], references: [id], onDelete: Cascade)
+
+  @@map("cascade_edges")
+}
+
+enum CascadeEdgeType {
+  CONTAINS        // Formulation CONTAINS Ingredient
+  PRODUCED_FROM   // Product PRODUCED_FROM Formulation
+  SOLD_TO         // Product SOLD_TO Customer
+  SUBJECT_TO      // Product SUBJECT_TO Regulation
+  REQUIRES        // Customer REQUIRES specification
+  SUPPLIED_BY     // Ingredient SUPPLIED_BY Supplier
+  SUPERSEDES      // Regulation SUPERSEDES Regulation
+  CONFLICTS_WITH  // Regulation CONFLICTS_WITH Regulation
+}
+
+model CascadeTrigger {
+  id                String        @id @default(cuid())
+  graphId           String
+  ruleId            String
+  triggerType       TriggerType
+  severity          Severity
+  title             String
+  description       String        @db.Text
+  affectedNodeIds   String[]      // CascadeNode IDs directly affected
+  cascadeDepth      Int           // How many hops the cascade reaches
+  cascadeBreadth    Int           // How many functional areas affected
+  totalSkusAffected Int
+  estimatedCostMin  Decimal?      @db.Decimal(12, 2)
+  estimatedCostMax  Decimal?      @db.Decimal(12, 2)
+  deadlineDate      DateTime?
+  conflictDates     Json?         // Conflicting compliance deadlines
+  status            TriggerStatus @default(DETECTED)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  graph            CascadeGraph     @relation(fields: [graphId], references: [id])
+  rule             Rule             @relation(fields: [ruleId], references: [id])
+  impacts          CascadeImpact[]
+  decisionPackage  DecisionPackage?
+
+  @@map("cascade_triggers")
+}
+
+enum TriggerType {
+  NEW_REGULATION
+  REGULATION_AMENDMENT
+  REGULATION_REPEAL
+  RETAILER_MANDATE_CHANGE
+  SUPPLIER_DISRUPTION
+  INGREDIENT_SHORTAGE
+}
+
+enum Severity {
+  CRITICAL // Immediate action required, product ban or large financial exposure
+  HIGH     // Action required within 30 days
+  MEDIUM   // Action required within 90 days
+  LOW      // Monitor, no immediate action
+  INFO     // Awareness only
+}
+
+enum TriggerStatus {
+  DETECTED
+  ANALYZING
+  IMPACT_ASSESSED
+  DECISION_PACKAGE_READY
+  DECISION_MADE
+  WORKFLOW_STARTED
+  COMPLETED
+  DISMISSED
+}
+
+model CascadeImpact {
+  id              String     @id @default(cuid())
+  triggerId       String
+  nodeId          String
+  impactType      ImpactType
+  description     String
+  financialImpact Decimal?   @db.Decimal(12, 2)
+  timelineImpact  Int?       // Days delay
+  reformRequired  Boolean    @default(false)
+  reformCost      Decimal?   @db.Decimal(12, 2)
+  reformOptions   Json?      // Array of reformulation options
+  priority        Int?       // 1-10
+
+  trigger CascadeTrigger @relation(fields: [triggerId], references: [id], onDelete: Cascade)
+  node    CascadeNode     @relation(fields: [nodeId], references: [id])
+
+  @@index([triggerId])
+  @@index([nodeId])
+  @@map("cascade_impacts")
+}
+
+enum ImpactType {
+  REFORMULATION_REQUIRED
+  LABEL_CHANGE_REQUIRED
+  PRODUCT_WITHDRAWAL
+  REFORMULATION_COST
+  SUPPLY_CHAIN_DISRUPTION
+  CUSTOMER_SPEC_VIOLATION
+  REGULATORY_PENALTY
+  SHELF_SPACE_LOSS
+  MARKET_ACCESS_LOSS
+}
+
+// ============================================================================
+// 3.8 Decision Packages & Workflows
+// ============================================================================
+
+model DecisionPackage {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  triggerId           String   @unique
+  title               String
+  summary             String   @db.Text
+  mandateSummary      String   @db.Text
+  affectedSkuList     Json     // Array of affected SKUs with details
+  complianceTimeline  Json     // Timeline with conflicts
+  reformulationOptions Json    // Cost-benefit analysis
+  prioritization      Json     // Risk x Impact x Urgency rankings
+  recommendation      String   @db.Text
+  generatedAt         DateTime @default(now())
+  deliveredAt         DateTime?
+  deliveryMethod      String?  // "dashboard" | "email" | "pdf"
+  decision            String?  // "accept" | "reject" | "defer" | "partial"
+  decidedBy           String?  // User ID
+  decidedAt           DateTime?
+  decisionNotes       String?
+
+  tenant  Tenant         @relation(fields: [tenantId], references: [id])
+  trigger CascadeTrigger @relation(fields: [triggerId], references: [id])
+
+  @@map("decision_packages")
+}
+
+model WorkflowInstance {
+  id                 String         @id @default(cuid())
+  tenantId           String
+  decisionPackageId  String?
+  workflowType       String
+  temporalWorkflowId String?        // Temporal workflow execution ID
+  status             WorkflowStatus @default(PENDING)
+  currentStep        String?
+  steps              Json           // Array of workflow step definitions
+  assignedTo         String[]       // User IDs
+  startedAt          DateTime?
+  completedAt        DateTime?
+  errorDetail        String?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("workflow_instances")
+}
+
+enum WorkflowStatus {
+  PENDING
+  RUNNING
+  AWAITING_APPROVAL
+  COMPLETED
+  FAILED
+  CANCELLED
+  TIMED_OUT
+}
+
+// ============================================================================
+// 3.9 Diagnostics (Paid Wedge)
+// ============================================================================
+
+model Diagnostic {
+  id            String           @id @default(cuid())
+  tenantId      String
+  companyName   String
+  contactEmail  String
+  contactName   String
+  status        DiagnosticStatus @default(REQUESTED)
+  paymentStatus PaymentStatus    @default(PENDING)
+  amount        Decimal          @db.Decimal(12, 2)
+  formData      Json             // What the customer submitted
+  resultData    Json?            // The diagnostic output
+  reportUrl     String?          // URL to generated PDF
+  completedAt   DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("diagnostics")
+}
+
+enum DiagnosticStatus {
+  REQUESTED
+  PAID
+  PROCESSING
+  COMPLETED
+  DELIVERED
+  EXPIRED
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+// ============================================================================
+// 3.10 Audit & System
+// ============================================================================
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  tenantId   String?
+  userId     String?
+  action     String
+  entityType String
+  entityId   String?
+  oldValue   Json?
+  newValue   Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@map("audit_logs")
+}
+
+model LlmUsageLog {
+  id               String   @id @default(cuid())
+  tenantId         String?
+  model            String
+  promptTokens     Int
+  completionTokens Int
+  totalTokens      Int
+  costUsd          Decimal  @db.Decimal(10, 6)
+  taskType         String   // "rule_parsing" | "query_agent" | "reformulation" | etc.
+  success          Boolean
+  errorMessage     String?
+  latencyMs        Int
+  createdAt        DateTime @default(now())
+
+  @@map("llm_usage_logs")
+}
+
+model PipelineRun {
+  id               String    @id @default(cuid())
+  pipelineType     String    // "legiscan" | "openfda" | "federal_register" | "usda"
+  status           String    // "running" | "completed" | "failed"
+  recordsProcessed Int
+  recordsNew       Int
+  recordsUpdated   Int
+  recordsFailed    Int
+  errorDetail      String?
+  startedAt        DateTime
+  completedAt      DateTime?
+  duration         Int?      // milliseconds
+
+  @@map("pipeline_runs")
+}

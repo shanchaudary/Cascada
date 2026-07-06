@@ -1,0 +1,31 @@
+# Temporal Dynamic Configuration for Development
+# Reference: https://docs.temporal.io/references/dynamic-config
+
+system.forceSearchAttributesCacheRefreshOnRead:
+  - value: true
+    constraints: {}
+
+system.enableVisibilityQuery:
+  - value: true
+    constraints: {}
+
+system.defaultNamespaceRetention:
+  - value: 30d
+    constraints: {}
+
+# Allow higher workflow execution rate for development
+system.rps:
+  - value: 5000
+    constraints: {}
+
+system.maxConcurrentActivityExecutionSize:
+  - value: 1000
+    constraints: {}
+
+system.maxConcurrentWorkflowExecutionSize:
+  - value: 500
+    constraints: {}
+
+system.maxConcurrentLocalActivityExecutionSize:
+  - value: 1000
+    constraints: {}
