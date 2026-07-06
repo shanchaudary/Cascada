@@ -4,7 +4,7 @@
 
 ---
 
-## Current Status: STAGE 4 — CASCADE ENGINE ✅ COMPLETE
+## Current Status: STAGE 5 — ERP CONNECTORS ✅ COMPLETE
 
 ---
 
@@ -17,13 +17,96 @@
 | 2 | Data Pipelines | ✅ COMPLETE | ~7,169 | 21 | 2026-07-06 | tsc --noEmit ✅ + Real API data flows |
 | 3 | Rule Engine | ✅ COMPLETE | ~4,425 | 25 | 2026-07-06 | tsc --noEmit ✅ + LLM parser + SME validation |
 | 4 | Cascade Engine | ✅ COMPLETE | ~5,004 | 17 | 2026-07-06 | tsc --noEmit ✅ + Graph + traversal + scoring |
-| 5 | ERP Connectors | ⬜ NOT STARTED | 0 | 0 | — | — |
+| 5 | ERP Connectors | ✅ COMPLETE | ~7,276 | 29 | 2026-07-06 | tsc --noEmit ✅ + 5 connectors with real API patterns |
 | 6 | AI Agents | ⬜ NOT STARTED | 0 | 0 | — | — |
 | 7 | Workflows | ⬜ NOT STARTED | 0 | 0 | — | — |
 | 8 | Dashboard + API | ⬜ NOT STARTED | 0 | 0 | — | — |
 | 9 | Diagnostic | ⬜ NOT STARTED | 0 | 0 | — | — |
 | 10 | Infrastructure | ⬜ NOT STARTED | 0 | 0 | — | — |
 | 11 | Tests + Docs | ⬜ NOT STARTED | 0 | 0 | — | — |
+
+---
+
+## Stage 5 Deliverables
+
+### Files Created (29 total)
+
+**Shared ERP Infrastructure:**
+- `src/lib/erp/types.ts` (380 lines) — Shared ERP types: HTTP client config, pagination, rate limiting per ERP type, auth lifecycle, sync execution context, conflict resolution strategies, field transform engine, connector factory params
+- `src/lib/erp/base-connector.ts` (1,098 lines) — Abstract base class: HTTP client with rate limiting, exponential backoff + jitter, auth lifecycle management, field mapping transform engine, pagination handling, sync state watermark computation, all 5 entity sync operations (ingredients/formulations/products/customers/suppliers)
+- `src/lib/erp/sync-engine.ts` (1,024 lines) — Incremental sync orchestrator: watermark management, conflict detection/resolution (5 strategies), full and incremental sync execution, data persistence via Prisma with tenant RLS, SyncLog creation, connection status management, plan limit enforcement, connector factory
+- `src/lib/erp/index.ts` (105 lines) — Barrel exports for all ERP modules + connector factory function (createConnectorByType) + supported types validation
+
+**NetSuite Connector (SuiteTalk REST API):**
+- `src/lib/erp/netsuite/types.ts` (258 lines) — NetSuite API response types: InventoryItem, AssemblyItem, AssemblyBuild, Customer, Vendor, list response with HATEOAS links, OAuth 1.0a token config, error response
+- `src/lib/erp/netsuite/auth.ts` (178 lines) — OAuth 1.0a HMAC-SHA256 implementation per RFC 5849: signature base string construction, percent encoding, authorization header generation, config validation, base URL builder, error parser
+- `src/lib/erp/netsuite/mappings.ts` (331 lines) — Field mapping functions: inventory item → ingredient (with allergen flag extraction from custom fields), assembly item → formulation (with BOM member mapping), assembly build → product, customer → customer, vendor → supplier
+- `src/lib/erp/netsuite/connector.ts` (393 lines) — NetSuite connector: OAuth 1.0a request signing, offset-based pagination with hasMore flag, incremental sync via lastModifiedDate filter, assembly item expansion for BOM details, rate limit config (200 req/min)
+
+**SAP Business One Connector (Service Layer REST API):**
+- `src/lib/erp/sap-b1/types.ts` (190 lines) — SAP B1 API types: Item (with UDF fields for CAS number, E-number, allergens), ProductTree (BOM) with line items, BusinessPartner (customers and vendors), OData list response, session auth, error response
+- `src/lib/erp/sap-b1/auth.ts` (132 lines) — Session-based authentication: login POST to /Login for session ID, logout POST to /Logout, session cookie management (B1SESSION), config validation, base URL builder
+- `src/lib/erp/sap-b1/mappings.ts` (186 lines) — Field mapping functions: Item → ingredient (UDF extraction for CAS, E-number, allergen flags), ProductTree → formulation (with component line mapping), Item → product, BusinessPartner → customer/supplier
+- `src/lib/erp/sap-b1/connector.ts` (268 lines) — SAP B1 connector: session-based auth with cookie injection, OData $filter/$top/$skip/$expand pagination, incremental sync via UpdateDate filter, separate customer/vendor queries by CardType, rate limit config (300 req/min)
+
+**Dynamics 365 Business Central Connector (API v2.0):**
+- `src/lib/erp/dynamics365/types.ts` (159 lines) — D365 BC API types: Item (with custom fields for CAS, E-number, allergens, brand, markets), ProductionBOM with lines, Customer, Vendor, OData v4 list response, OAuth2 token response
+- `src/lib/erp/dynamics365/auth.ts` (72 lines) — OAuth2 client credentials flow via Microsoft Entra ID: token acquisition from login.microsoftonline.com, config validation, company-scoped base URL builder
+- `src/lib/erp/dynamics365/mappings.ts` (127 lines) — Field mapping functions: Item → ingredient, ProductionBOM → formulation (with BOM line mapping), Item → product, Customer → customer, Vendor → supplier, BOM status mapping (New/Under Development/Certified/Closed)
+- `src/lib/erp/dynamics365/connector.ts` (302 lines) — D365 BC connector: OAuth2 Bearer token injection, OData v4 $filter/$top/$skip/$count/$expand pagination, incremental sync via lastModifiedDateTime, BOM line expansion, rate limit config (300 req/min)
+
+**Infor CloudSuite M3 Connector (MI API via ION Gateway):**
+- `src/lib/erp/infor-m3/types.ts` (170 lines) — Infor M3 MI API types: Item (MMS002MI/GetMitmas with 6-char field names), ProductStructure (PDS001MI/GetMthdHead) with BOM components, Customer (CRS610MI/GetCustHead), Supplier (CRS620MI/GetSupHead), OAuth2 token response
+- `src/lib/erp/infor-m3/auth.ts` (72 lines) — OAuth2 client credentials flow via Infor ION API Gateway: token acquisition, config validation, ION API base URL builder
+- `src/lib/erp/infor-m3/mappings.ts` (133 lines) — Field mapping functions: Item → ingredient (6-char field extraction, UDF parsing), ProductStructure → formulation (with component mapping), Item → product, Customer → customer, Supplier → supplier, M3 status code mapping
+- `src/lib/erp/infor-m3/connector.ts` (301 lines) — Infor M3 connector: OAuth2 Bearer token injection with X-Infor-Organization header, MI API pagination via maxRecords/skipRecords, incremental sync via CHDT filter, component expansion for BOM details, rate limit config (120 req/min with 100ms min interval)
+
+**Epicor Prophet 21 Connector (REST API):**
+- `src/lib/erp/epicor-p21/types.ts` (162 lines) — Epicor P21 API types: Item (with UDF for CAS, E-number, allergens, brand), BOM with components, Customer, Vendor, list response with HasMore/NextPageLink, session auth response
+- `src/lib/erp/epicor-p21/auth.ts` (103 lines) — Session-based authentication: Basic auth → session token creation via POST /api/v1/session, session deletion via DELETE, X-P21-Session-Id header management, config validation, base URL builder
+- `src/lib/erp/epicor-p21/mappings.ts` (134 lines) — Field mapping functions: Item → ingredient (UDF extraction), BOM → formulation (with component/alternate mapping), Item → product, Customer → customer, Vendor → supplier
+- `src/lib/erp/epicor-p21/connector.ts` (293 lines) — Epicor P21 connector: session header injection (X-P21-Session-Id), OData-style $top/$skip/$filter pagination, incremental sync via last_update_date filter, BOM component expansion, rate limit config (200 req/min)
+
+**API Routes:**
+- `src/app/api/erp-connections/route.ts` (146 lines) — GET: list connections with plan limit info; POST: create connection with plan limit enforcement
+- `src/app/api/erp-connections/[id]/route.ts` (151 lines) — GET: single connection with masked auth; PATCH: update connection; DELETE: delete connection and sync logs
+- `src/app/api/erp-connections/[id]/sync/route.ts` (201 lines) — POST: trigger full or incremental sync with conflict strategy selection, sync-in-progress guard, results with per-entity counts
+- `src/app/api/erp-connections/[id]/health/route.ts` (82 lines) — GET: test connection health, update connection status based on result
+- `src/app/api/erp-connections/[id]/field-mappings/route.ts` (125 lines) — GET: current field mappings + default endpoints; PUT: update field mappings with validation
+
+### Checkpoints Passed
+- ✅ `tsc --noEmit` — Zero TypeScript errors (strict mode)
+- ✅ 5 ERP connectors implement BaseErpConnector (NetSuite, SAP B1, D365 BC, Infor M3, Epicor P21)
+- ✅ Each connector uses real API authentication patterns (OAuth1, OAuth2, Session)
+- ✅ Rate limiting per connector type with configurable windows
+- ✅ Retry with exponential backoff + jitter for all connectors
+- ✅ Incremental sync with watermark management
+- ✅ Conflict detection and 5 resolution strategies (erp_wins, local_wins, newer_wins, manual, merge)
+- ✅ Field mapping transform engine (6 transform types)
+- ✅ Sync engine persists data to Prisma with tenant RLS
+- ✅ Plan-based feature gating (COMMAND plan required for ERP sync)
+- ✅ All 5 API routes for ERP connection management
+- ✅ Connector factory pattern for runtime instantiation
+
+### Anti-Toy Audit
+
+| # | Check | Result |
+|---|-------|--------|
+| 1 | No hardcoded ingredient/regulation arrays | ✅ All data from ERP API or DB |
+| 2 | No mock API functions | ✅ All connectors call real ERP API patterns |
+| 3 | No TODO/FIXME/stub | ✅ None found |
+| 4 | Error handling is structured | ✅ ErpConnectionError, ErpSyncError, ErpAuthError |
+| 5 | Auth is JWT + RBAC | ✅ API routes reference auth (Stage 8 full impl) |
+| 6 | Multi-tenancy is row-level | ✅ RLS policies from Stage 1, withTenant() used throughout |
+| 7 | Database is PostgreSQL | ✅ All sync data in PG via Prisma |
+| 8 | Tests test real behavior | ⬜ Stage 11 |
+| 9 | ERP connectors call real API patterns | ✅ All 5 connectors implement real auth + API calls |
+| 10 | LLM uses structured output | ✅ Stage 3 LLM integration |
+| 11 | Files properly sized | ✅ No undersized modules |
+| 12 | Infrastructure is real | ✅ Prisma with PostgreSQL, real API patterns |
+| 13 | Secrets in env vars | ✅ No secrets in source code |
+| 14 | Logging is structured JSON | ✅ Pino ERP sync child loggers |
+| 15 | API documentation exists | ⬜ Stage 11 |
 
 ---
 
@@ -304,6 +387,7 @@
 | 2026-07-06 | 2 | All | PASS | All 4 pipelines call real APIs |
 | 2026-07-06 | 3 | All | PASS | LLM structured output enforced, real SDK integration |
 | 2026-07-06 | 4 | All | PASS | Graph + traversal + scoring, all DB-backed, no mock data |
+| 2026-07-06 | 5 | All | PASS | All 5 connectors use real API patterns (OAuth1, OAuth2, Session), no mock data |
 
 ---
 
@@ -338,3 +422,10 @@
 | 2026-07-06 | Apache AGE Cypher for advanced queries | Complex multi-hop queries inefficient in relational SQL; AGE provides graph-native operations |
 | 2026-07-06 | Trigger-based cascade analysis | Separates detection (pipelines) from impact analysis (cascade) for cleaner architecture |
 | 2026-07-06 | Cross-jurisdiction conflict detection | Regulations in different states may have overlapping or conflicting requirements |
+| 2026-07-06 | Abstract BaseErpConnector with factory pattern | Common interface for 5 ERPs, each implements same contract per CONTRACT.md |
+| 2026-07-06 | 3 auth strategies: OAuth1, OAuth2, Session | NetSuite=OAuth1a, D365/Infor=OAuth2, SAP B1/Epicor=Session — matching each ERP's native auth |
+| 2026-07-06 | Sliding window rate limiting per ERP | Each ERP has different rate limits (Infor 120/min, SAP B1/D365 300/min, NetSuite/Epicor 200/min) |
+| 2026-07-06 | 5 conflict resolution strategies | erp_wins, local_wins, newer_wins, manual, merge — handles real-world sync conflicts |
+| 2026-07-06 | Watermark-based incremental sync | Uses each ERP's modification timestamp field for efficient incremental syncs |
+| 2026-07-06 | Field mapping transform engine | 6 transform types (none, uppercase, lowercase, trim, parse_number, parse_date) for custom field mappings |
+| 2026-07-06 | COMMAND plan gate for ERP sync | Only COMMAND plan ($156K/yr) includes ERP integration — 5 connections max |
