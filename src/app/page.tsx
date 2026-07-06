@@ -61,7 +61,7 @@ export default function HomePage() {
 
         {/* Platform status */}
         <div className="mt-8 text-sm text-slate-500">
-          Platform under development — Stage 1 Foundation
+          Regulatory cascade impact analysis for food manufacturers
         </div>
       </main>
     </div>

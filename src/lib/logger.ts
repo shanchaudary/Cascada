@@ -114,4 +114,16 @@ export function createAgentLogger(agentType: string, operation: string) {
   });
 }
 
+/**
+ * Create a child logger for Temporal workflow operations.
+ * Tracks workflow type, instance ID, and activity execution.
+ */
+export function createWorkflowLogger(workflowType: string, workflowId?: string) {
+  return logger.child({
+    component: "workflow",
+    workflowType,
+    ...(workflowId && { workflowId }),
+  });
+}
+
 export default logger;

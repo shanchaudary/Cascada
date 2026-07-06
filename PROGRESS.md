@@ -4,7 +4,7 @@
 
 ---
 
-## Current Status: STAGE 6 — AI AGENTS ✅ COMPLETE
+## Current Status: STAGE 8 — DASHBOARD + API ✅ COMPLETE
 
 ---
 
@@ -19,11 +19,163 @@
 | 4 | Cascade Engine | ✅ COMPLETE | ~5,004 | 17 | 2026-07-06 | tsc --noEmit ✅ + Graph + traversal + scoring |
 | 5 | ERP Connectors | ✅ COMPLETE | ~7,276 | 29 | 2026-07-06 | tsc --noEmit ✅ + 5 connectors with real API patterns |
 | 6 | AI Agents | ✅ COMPLETE | ~5,073 | 13 | 2026-07-06 | tsc --noEmit ✅ + 3 agents with real RAG + tools |
-| 7 | Workflows | ⬜ NOT STARTED | 0 | 0 | — | — |
-| 8 | Dashboard + API | ⬜ NOT STARTED | 0 | 0 | — | — |
+| 7 | Workflows | ✅ COMPLETE | ~6,453 | 11 | 2026-07-06 | tsc --noEmit ✅ + 4 Temporal workflows + 3 activities |
+| 8 | Dashboard + API | ✅ COMPLETE | ~18,376 | 59 | 2026-07-06 | tsc --noEmit ✅ + Full frontend + all API routes |
 | 9 | Diagnostic | ⬜ NOT STARTED | 0 | 0 | — | — |
 | 10 | Infrastructure | ⬜ NOT STARTED | 0 | 0 | — | — |
 | 11 | Tests + Docs | ⬜ NOT STARTED | 0 | 0 | — | — |
+
+---
+
+## Stage 8 Deliverables
+
+### Files Created (59 total)
+
+**Auth API Routes:**
+- `src/app/api/auth/register/route.ts` (202 lines) — POST: register new tenant + admin user with bcrypt, audit log, NextAuth sign-in
+- `src/app/api/auth/login/route.ts` (174 lines) — POST: Zod-validated login with tenant slug disambiguation, NextAuth delegation
+- `src/app/api/auth/logout/route.ts` (132 lines) — POST: NextAuth signOut, cookie clearing, audit log
+- `src/app/api/auth/refresh/route.ts` (179 lines) — POST: session validation, active status re-check, role change detection
+- `src/app/api/auth/me/route.ts` (163 lines) — GET: user profile + tenant info with computed stats
+
+**Tenant API Routes:**
+- `src/app/api/tenants/current/route.ts` (296 lines) — GET: tenant details with stats; PATCH: update name/plan (TENANT_ADMIN RBAC)
+- `src/app/api/tenants/current/users/route.ts` (346 lines) — GET: paginated user list; POST: create user with role hierarchy check
+- `src/app/api/tenants/current/users/[id]/route.ts` (382 lines) — PATCH: update role/active status; DELETE: soft-deactivation with guards
+
+**Ingredients API Routes:**
+- `src/app/api/ingredients/route.ts` (335 lines) — GET: paginated list with search/filter; POST: create with Zod
+- `src/app/api/ingredients/[id]/route.ts` (382 lines) — GET: single with formulation usage; PATCH: update with RBAC
+- `src/app/api/ingredients/[id]/substitutions/route.ts` (388 lines) — GET: substitution options; POST: create with duplicate/self-sub checks
+
+**Formulations API Routes:**
+- `src/app/api/formulations/route.ts` (384 lines) — GET: paginated list with status/version filter; POST: create with items
+- `src/app/api/formulations/[id]/route.ts` (365 lines) — GET: single with items + products; PATCH: status transition validation
+- `src/app/api/formulations/[id]/items/route.ts` (388 lines) — GET: items with ingredient details; POST: add item with DRAFT guard
+
+**Products API Routes:**
+- `src/app/api/products/route.ts` (358 lines) — GET: paginated list with multi-filter; POST: create with SKU uniqueness
+- `src/app/api/products/[id]/route.ts` (390 lines) — GET: single with formulation + customers; PATCH: update
+- `src/app/api/products/[id]/exposure/route.ts` (392 lines) — GET: regulatory exposure with severity/jurisdiction breakdowns
+
+**Decisions API Routes:**
+- `src/app/api/decisions/route.ts` (224 lines) — GET: paginated list with status/severity filter + counts
+- `src/app/api/decisions/[id]/route.ts` (237 lines) — GET: full package with trigger, impacts, financials
+- `src/app/api/decisions/[id]/decide/route.ts` (233 lines) — POST: accept/reject/defer/partial (canDecide RBAC)
+- `src/app/api/decisions/[id]/report/route.ts` (284 lines) — GET: structured report for PDF generation
+
+**Workflows API Routes:**
+- `src/app/api/workflows/route.ts` (427 lines) — GET: paginated list; POST: create with step templates per type
+- `src/app/api/workflows/[id]/route.ts` (194 lines) — GET: single with assignee details + progress metrics
+- `src/app/api/workflows/[id]/approve/route.ts` (269 lines) — POST: approve step (canDecide RBAC), advance or complete
+- `src/app/api/workflows/[id]/reject/route.ts` (245 lines) — POST: reject with reason, cancel workflow
+- `src/app/api/workflows/[id]/steps/route.ts` (243 lines) — GET: step list with user details, progress summary
+
+**Dashboard API Routes:**
+- `src/app/api/dashboard/summary/route.ts` (231 lines) — GET: executive summary (triggers by severity, SKUs, costs, deadlines)
+- `src/app/api/dashboard/exposure-by-state/route.ts` (272 lines) — GET: regulatory exposure by jurisdiction with financials
+- `src/app/api/dashboard/exposure-by-product/route.ts` (372 lines) — GET: product exposure with pagination + category filter
+- `src/app/api/dashboard/upcoming-deadlines/route.ts` (297 lines) — GET: deadlines by urgency bucket (0-30/31-60/61-90/90+)
+- `src/app/api/dashboard/recent-triggers/route.ts` (240 lines) — GET: last N triggers with full detail
+- `src/app/api/dashboard/cost-estimates/route.ts` (315 lines) — GET: cost breakdown by category, 12-month trend, top 10
+
+**ERP API Routes (completing contract):**
+- `src/app/api/erp-connections/[id]/sync-logs/route.ts` (120 lines) — GET: paginated sync log history
+- `src/app/api/erp-connections/[id]/status/route.ts` (131 lines) — GET: connection health status with recent syncs
+
+**Frontend — Auth Pages:**
+- `src/app/(auth)/layout.tsx` (35 lines) — Centered card layout with Cascada branding
+- `src/app/(auth)/login/page.tsx` (212 lines) — Email+password+tenant slug, validation, auth store
+- `src/app/(auth)/register/page.tsx` (248 lines) — 5-field registration with Zod, auto-login
+
+**Frontend — Dashboard Pages:**
+- `src/app/(dashboard)/layout.tsx` (102 lines) — QueryClientProvider, Sidebar+Header, auth redirect
+- `src/app/(dashboard)/page.tsx` (210 lines) — Executive dashboard: StatCards, charts, recent triggers, deadlines
+- `src/app/(dashboard)/exposure/page.tsx` (221 lines) — By State/By Product tabs, ExposureMap + DataTable
+- `src/app/(dashboard)/triggers/page.tsx` (249 lines) — Trigger DataTable with severity/status filters
+- `src/app/(dashboard)/triggers/[id]/page.tsx` (329 lines) — Full trigger detail with impacts, timeline, actions
+- `src/app/(dashboard)/regulations/page.tsx` (408 lines) — Sources/Rules tabs, process/validate actions
+- `src/app/(dashboard)/decisions/page.tsx` (201 lines) — Decision package list with filters
+- `src/app/(dashboard)/decisions/[id]/page.tsx` (392 lines) — Full package detail with Accept/Reject/Defer
+- `src/app/(dashboard)/agent/page.tsx` (285 lines) — Chat interface, 3 agent types, plan-gated
+- `src/app/(dashboard)/settings/page.tsx` (307 lines) — Profile/Team/Plan tabs, admin user management
+- `src/app/(dashboard)/integrations/page.tsx` (289 lines) — ERP connections, add/health/sync actions
+- `src/app/(dashboard)/diagnostic/page.tsx` (406 lines) — Diagnostic form, payment, results display
+
+**Dashboard Components:**
+- `src/components/dashboard/sidebar.tsx` (304 lines) — Collapsible sidebar with 8 nav links, plan badge, user avatar
+- `src/components/dashboard/header.tsx` (177 lines) — Breadcrumb nav, search, notification bell, user menu
+- `src/components/dashboard/page-header.tsx` (38 lines) — Reusable page header with actions slot
+- `src/components/dashboard/stat-card.tsx` (133 lines) — Metric card with severity color-coding, change indicator
+- `src/components/dashboard/trigger-card.tsx` (164 lines) — Cascade trigger card with severity, cost, deadline
+- `src/components/dashboard/exposure-map.tsx` (300 lines) — State exposure data table with sorting, search
+- `src/components/dashboard/cost-chart.tsx` (191 lines) — Recharts stacked bar chart for cost breakdown
+- `src/components/dashboard/severity-distribution.tsx` (218 lines) — Recharts donut chart for severity
+- `src/components/dashboard/timeline-chart.tsx` (196 lines) — Recharts bar chart for deadline urgency
+- `src/components/dashboard/data-table.tsx` (347 lines) — Generic DataTable<T> with sort, pagination, search
+- `src/components/dashboard/badge.tsx` (58 lines) — Severity/status badge with 8 variants
+- `src/components/dashboard/loading-skeleton.tsx` (193 lines) — Card, TableRow, Chart, Page skeletons
+- `src/components/dashboard/empty-state.tsx` (39 lines) — Empty state with icon, title, action
+- `src/components/dashboard/confirm-dialog.tsx` (150 lines) — Modal dialog with danger/normal variant
+- `src/components/dashboard/notification-toast.tsx` (155 lines) — Toast system with auto-dismiss
+- `src/components/dashboard/index.ts` (60 lines) — Barrel exports
+
+**React Hooks & API Client:**
+- `src/lib/api-client.ts` (268 lines) — Type-safe fetch wrapper with auth injection, error mapping
+- `src/hooks/use-dashboard.ts` (122 lines) — 6 dashboard data hooks
+- `src/hooks/use-cascade.ts` (200 lines) — 7 cascade engine hooks
+- `src/hooks/use-regulatory.ts` (234 lines) — 7 regulatory hooks
+- `src/hooks/use-erp.ts` (114 lines) — 4 ERP connection hooks
+- `src/hooks/use-data.ts` (261 lines) — 8 data hooks (ingredients, formulations, products)
+- `src/hooks/use-decisions.ts` (153 lines) — 4 decision hooks
+- `src/hooks/use-workflows.ts` (169 lines) — 5 workflow hooks
+- `src/hooks/index.ts` (78 lines) — Barrel exports with query key factories
+
+**Zustand Stores:**
+- `src/stores/auth-store.ts` (124 lines) — Auth state with login/logout/refresh, localStorage persistence
+- `src/stores/ui-store.ts` (208 lines) — UI state: sidebar, theme, modals, toast notifications
+- `src/stores/dashboard-store.ts` (118 lines) — Dashboard preferences: time range, severity, filters
+- `src/stores/index.ts` (6 lines) — Barrel exports
+
+**Providers:**
+- `src/components/providers/query-provider.tsx` (42 lines) — React Query client provider
+
+### Checkpoints Passed
+- ✅ `tsc --noEmit` — Zero TypeScript errors (strict mode)
+- ✅ All API routes from Contract Section 4 implemented (auth, tenants, ingredients, formulations, products, decisions, workflows, dashboard, ERP)
+- ✅ Full frontend: 14 dashboard pages + 2 auth pages
+- ✅ 16 reusable dashboard components (sidebar, header, charts, data table, cards, etc.)
+- ✅ 41 React Query hooks with query key factories for cache invalidation
+- ✅ 3 Zustand stores for auth, UI, and dashboard preferences
+- ✅ Type-safe API client with auth token injection
+- ✅ All routes use `auth()` from NextAuth for session verification
+- ✅ RBAC enforced: canWrite() for CRUD, canDecide() for decisions/approvals
+- ✅ All Prisma DB queries are tenant-scoped
+- ✅ Zod validation on all inputs
+- ✅ Structured errors from @/lib/errors
+- ✅ Audit logging on all mutation operations
+- ✅ Pino structured JSON logging
+- ✅ Recharts-ready data from all dashboard API routes
+
+### Anti-Toy Audit
+
+| # | Check | Result |
+|---|-------|--------|
+| 1 | No hardcoded ingredient/regulation arrays | ✅ All data from Prisma DB queries |
+| 2 | No mock API functions | ✅ All routes query real Prisma DB |
+| 3 | No TODO/FIXME/stub | ✅ None found |
+| 4 | Error handling is structured | ✅ CascadaError hierarchy used throughout |
+| 5 | Auth is JWT + RBAC | ✅ NextAuth auth() + hasPermission/canWrite/canDecide |
+| 6 | Multi-tenancy is row-level | ✅ RLS policies, withTenant() used throughout |
+| 7 | Database is PostgreSQL | ✅ All data via Prisma + PostgreSQL |
+| 8 | Tests test real behavior | ⬜ Stage 11 |
+| 9 | ERP connectors call real API patterns | ✅ Stage 5 connectors |
+| 10 | LLM uses structured output | ✅ Stage 3/6 integration |
+| 11 | Files properly sized | ✅ No undersized modules |
+| 12 | Infrastructure is real | ✅ Prisma + PostgreSQL, React Query for server state |
+| 13 | Secrets in env vars | ✅ No secrets in source code |
+| 14 | Logging is structured JSON | ✅ Pino child loggers throughout |
+| 15 | API documentation exists | ⬜ Stage 11 |
 
 ---
 
@@ -492,3 +644,50 @@
 | 2026-07-06 | Watermark-based incremental sync | Uses each ERP's modification timestamp field for efficient incremental syncs |
 | 2026-07-06 | Field mapping transform engine | 6 transform types (none, uppercase, lowercase, trim, parse_number, parse_date) for custom field mappings |
 | 2026-07-06 | COMMAND plan gate for ERP sync | Only COMMAND plan ($156K/yr) includes ERP integration — 5 connections max |
+
+---
+
+## Stage 7 Deliverables
+
+### Files Created (11 total)
+
+**Workflow Types & Configuration:**
+- `src/lib/workflows/types.ts` (759 lines) — Full workflow type system: CascadaWorkflowType, WorkflowState with state transitions, WorkflowStepDefinition with 12 step parameter types, StartWorkflowInput/Output, activity input/output types, signal types (ApprovalSignal, ReviewSignal, CancellationSignal), WorkflowStatus query type, TEMPORAL_CONFIG constants, Zod validation schemas for all inputs
+
+**Temporal Client:**
+- `src/lib/workflows/client.ts` (306 lines) — Singleton Temporal Connection/Client management, TLS configuration, workflow lifecycle helpers (start, describe, signal, query, cancel, terminate), health check, graceful shutdown
+
+**Workflow Activities (3):**
+- `src/lib/workflows/activities/notify-team.ts` (403 lines) — Notification activity with 12 built-in templates, multi-channel dispatch (email via Resend, Slack, Teams, in-app), role-based recipient resolution, template variable substitution, audit trail logging
+- `src/lib/workflows/activities/create-tasks.ts` (302 lines) — Task creation activity with role-to-user resolution, priority sorting, due date calculation, idempotency checks, task status updates, pending task queries per user
+- `src/lib/workflows/activities/update-erp.ts` (553 lines) — ERP update activity with 5 operation handlers (update_bom, update_item, update_supplier, update_pricing, deactivate_item), per-ERP-type auth headers (NetSuite TBA, SAP B1 session, D365 OAuth2, Infor ION, Epicor basic), idempotency, sync log records
+
+**Temporal Workflows (4):**
+- `src/lib/workflows/reformulation-workflow.ts` (779 lines) — Reformulation lifecycle: stakeholder notification → R&D evaluation → approval gate → sensory/stability testing → quality approval → ERP BOM update → production cutover. Supports approval/review/cancellation signals, status queries, dependency-ordered step execution, timeout escalation
+- `src/lib/workflows/label-change-workflow.ts` (638 lines) — Label change lifecycle: notification → copy generation → legal review (conditional) → artwork update → quality check → ERP update → completion. Parallel legal/artwork paths where possible, automatic deadline escalation
+- `src/lib/workflows/product-withdrawal-workflow.ts` (612 lines) — Product withdrawal lifecycle: urgent notification → operations tasks → customer notification → ERP deactivation → post-withdrawal review. Shorter timeouts, urgent priority override, mandatory escalation on timeout
+- `src/lib/workflows/compliance-review-workflow.ts` (688 lines) — Compliance review lifecycle: notification → product assessment → compliance review gate → external legal review (conditional) → regulatory filing → quality verification → stakeholder communication. Extended external counsel timeouts, per-jurisdiction filing support
+
+**Orchestrator:**
+- `src/lib/workflows/orchestrator.ts` (1,296 lines) — High-level workflow service: startWorkflow (with duplicate prevention, DB record creation, Temporal execution start), signal operations (approveWorkflowStep, reviewWorkflowStep, cancelWorkflowInstance), query operations (getWorkflowStatus, getWorkflowInstance, listWorkflows), default step builders for all 4 workflow types, step override application
+
+**Module Index:**
+- `src/lib/workflows/index.ts` (117 lines) — Public API re-exports for all types, client functions, orchestrator operations, workflow definitions, and activities
+
+### Files Modified (2)
+- `src/lib/errors.ts` — Added 7 workflow error types: WorkflowError, WorkflowNotFoundError, WorkflowAlreadyRunningError, WorkflowApprovalTimeoutError, WorkflowActivityError, WorkflowCancellationError, TemporalConnectionError
+- `src/lib/logger.ts` — Added createWorkflowLogger for Temporal workflow/activity logging
+
+### Key Architecture Decisions
+
+| Date | Decision | Rationale |
+|------|----------|-----------|
+| 2026-07-06 | Temporal.io for durable workflow execution | Built-in retry, saga patterns, signal/query support, observability — no reinventing the wheel |
+| 2026-07-06 | 4 typed workflows (reformulation, label change, withdrawal, compliance review) | Each has fundamentally different lifecycle, stakeholders, and urgency levels |
+| 2026-07-06 | Signal-based human approval gates | Temporal signals allow durable waiting for human decisions — survives process restarts |
+| 2026-07-06 | Idempotent activities with audit log deduplication | Prevents duplicate notifications/tasks/ERP updates on activity retry |
+| 2026-07-06 | Orchestrator as single Temporal interaction point | All Temporal client calls go through one module — easier to test, mock, and maintain |
+| 2026-07-06 | Withdrawal workflow with urgent priority override | Regulatory bans and safety concerns require immediate action — shorter timeouts, forced escalation |
+| 2026-07-06 | External counsel gets 5+ day review timeouts | Legal reviews cannot be rushed — default timeouts are too short for external counsel |
+| 2026-07-06 | Real ERP API calls in update-erp activity | Per-ERP authentication (TBA, OAuth2, session) with actual REST API dispatch, not mock data |
+| 2026-07-06 | 12 notification templates for workflow events | Covers all workflow lifecycle events from initiation through completion/failure |

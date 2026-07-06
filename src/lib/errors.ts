@@ -408,6 +408,87 @@ export class AgentToolError extends CascadaError {
 }
 
 // ============================================================================
+// Workflow Errors
+// ============================================================================
+
+export class WorkflowError extends CascadaError {
+  constructor(message: string, workflowType: string, context?: Record<string, unknown>) {
+    super(
+      `Workflow error (${workflowType}): ${message}`,
+      "WORKFLOW_ERROR",
+      500,
+      { workflowType, ...context }
+    );
+  }
+}
+
+export class WorkflowNotFoundError extends CascadaError {
+  constructor(workflowId: string, context?: Record<string, unknown>) {
+    super(
+      `Workflow instance not found: ${workflowId}`,
+      "WORKFLOW_NOT_FOUND",
+      404,
+      { workflowId, ...context }
+    );
+  }
+}
+
+export class WorkflowAlreadyRunningError extends CascadaError {
+  constructor(triggerId: string, workflowType: string, context?: Record<string, unknown>) {
+    super(
+      `A workflow of type '${workflowType}' is already running for trigger ${triggerId}`,
+      "WORKFLOW_ALREADY_RUNNING",
+      409,
+      { triggerId, workflowType, ...context }
+    );
+  }
+}
+
+export class WorkflowApprovalTimeoutError extends CascadaError {
+  constructor(workflowId: string, stepName: string, context?: Record<string, unknown>) {
+    super(
+      `Workflow approval timed out for step '${stepName}' in workflow ${workflowId}`,
+      "WORKFLOW_APPROVAL_TIMEOUT",
+      408,
+      { workflowId, stepName, ...context }
+    );
+  }
+}
+
+export class WorkflowActivityError extends CascadaError {
+  constructor(activityName: string, message: string, context?: Record<string, unknown>) {
+    super(
+      `Workflow activity error (${activityName}): ${message}`,
+      "WORKFLOW_ACTIVITY_ERROR",
+      500,
+      { activityName, ...context }
+    );
+  }
+}
+
+export class WorkflowCancellationError extends CascadaError {
+  constructor(workflowId: string, reason: string, context?: Record<string, unknown>) {
+    super(
+      `Workflow cancelled: ${reason}`,
+      "WORKFLOW_CANCELLED",
+      499,
+      { workflowId, reason, ...context }
+    );
+  }
+}
+
+export class TemporalConnectionError extends CascadaError {
+  constructor(message: string, context?: Record<string, unknown>) {
+    super(
+      `Temporal connection error: ${message}`,
+      "TEMPORAL_CONNECTION_ERROR",
+      503,
+      context
+    );
+  }
+}
+
+// ============================================================================
 // Error helper: determine if an error is operational (expected) or programming (bug)
 // ============================================================================
 
