@@ -208,6 +208,20 @@ export const cascadeTriggerAnalyzeSchema = z.object({
   includeTimelineConflicts: z.boolean().default(true),
 });
 
+export const cascadeExposureSchema = z.object({
+  jurisdiction: z.array(z.string()).optional(),
+  productCategory: z.array(z.string()).optional(),
+  minSeverity: z.enum(["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]).optional(),
+  includeCostEstimates: z.boolean().default(true),
+});
+
+export const cascadeDiagnosticSchema = z.object({
+  productCategories: z.array(z.string()).min(1),
+  markets: z.array(z.string()).min(1),
+  ingredientsOfConcern: z.array(z.string()).optional(),
+  plan: z.enum(["DIAGNOSTIC", "SCOUT", "PRO", "COMMAND"]).optional(),
+});
+
 // ============================================================================
 // Decision schemas
 // ============================================================================

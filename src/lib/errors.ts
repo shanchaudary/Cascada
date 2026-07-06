@@ -253,6 +253,39 @@ export class CascadeTraversalError extends CascadaError {
   }
 }
 
+export class CascadeImpactError extends CascadaError {
+  constructor(message: string, context?: Record<string, unknown>) {
+    super(
+      `Cascade impact scoring error: ${message}`,
+      "CASCADE_IMPACT_ERROR",
+      500,
+      context
+    );
+  }
+}
+
+export class CascadeCostError extends CascadaError {
+  constructor(message: string, context?: Record<string, unknown>) {
+    super(
+      `Cascade cost estimation error: ${message}`,
+      "CASCADE_COST_ERROR",
+      500,
+      context
+    );
+  }
+}
+
+export class CascadeTimelineError extends CascadaError {
+  constructor(message: string, context?: Record<string, unknown>) {
+    super(
+      `Cascade timeline error: ${message}`,
+      "CASCADE_TIMELINE_ERROR",
+      500,
+      context
+    );
+  }
+}
+
 // ============================================================================
 // Payment Errors
 // ============================================================================

@@ -102,6 +102,7 @@ export interface ImpactScore {
   nodeType: CascadeNodeType;
   entityId: string;
   label: string;
+  impactType: ImpactType;
   financialImpact: number;
   timelineImpactDays: number;
   severity: Severity;

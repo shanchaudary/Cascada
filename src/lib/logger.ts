@@ -90,4 +90,16 @@ export function createErpSyncLogger(
   });
 }
 
+/**
+ * Create a child logger for cascade engine operations.
+ * Tracks graph builds, traversals, scoring, and cost estimation.
+ */
+export function createCascadeLogger(operation: string, triggerId?: string) {
+  return logger.child({
+    component: "cascade",
+    operation,
+    ...(triggerId && { triggerId }),
+  });
+}
+
 export default logger;
