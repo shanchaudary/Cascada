@@ -349,6 +349,65 @@ export class SmeValidationError extends CascadaError {
 }
 
 // ============================================================================
+// Agent Errors
+// ============================================================================
+
+export class AgentError extends CascadaError {
+  constructor(message: string, agentType: string, context?: Record<string, unknown>) {
+    super(
+      `Agent error (${agentType}): ${message}`,
+      "AGENT_ERROR",
+      500,
+      { agentType, ...context }
+    );
+  }
+}
+
+export class AgentPlanAccessError extends CascadaError {
+  constructor(agentType: string, plan: string, context?: Record<string, unknown>) {
+    super(
+      `Agent '${agentType}' is not available on the ${plan} plan. Upgrade to access this feature.`,
+      "AGENT_PLAN_ACCESS_DENIED",
+      403,
+      { agentType, currentPlan: plan, ...context }
+    );
+  }
+}
+
+export class AgentBudgetError extends CascadaError {
+  constructor(agentType: string, tenantId: string, remaining: number, context?: Record<string, unknown>) {
+    super(
+      `Agent budget exhausted for '${agentType}'. Daily token limit reached (remaining: ${remaining}).`,
+      "AGENT_BUDGET_EXHAUSTED",
+      429,
+      { agentType, tenantId, remaining, ...context }
+    );
+  }
+}
+
+export class AgentConversationError extends CascadaError {
+  constructor(message: string, context?: Record<string, unknown>) {
+    super(
+      `Agent conversation error: ${message}`,
+      "AGENT_CONVERSATION_ERROR",
+      400,
+      context
+    );
+  }
+}
+
+export class AgentToolError extends CascadaError {
+  constructor(toolName: string, message: string, context?: Record<string, unknown>) {
+    super(
+      `Agent tool error (${toolName}): ${message}`,
+      "AGENT_TOOL_ERROR",
+      500,
+      { toolName, ...context }
+    );
+  }
+}
+
+// ============================================================================
 // Error helper: determine if an error is operational (expected) or programming (bug)
 // ============================================================================
 

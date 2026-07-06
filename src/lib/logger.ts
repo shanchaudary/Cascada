@@ -102,4 +102,16 @@ export function createCascadeLogger(operation: string, triggerId?: string) {
   });
 }
 
+/**
+ * Create a child logger for AI agent operations.
+ * Tracks agent type, execution context, and tool usage.
+ */
+export function createAgentLogger(agentType: string, operation: string) {
+  return logger.child({
+    component: "agent",
+    agentType,
+    operation,
+  });
+}
+
 export default logger;

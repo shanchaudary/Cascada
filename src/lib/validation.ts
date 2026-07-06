@@ -243,6 +243,36 @@ export const agentQuerySchema = z.object({
   }).optional(),
 });
 
+export const agentReformulationSchema = z.object({
+  ingredientId: cuidSchema,
+  triggerId: cuidSchema.optional(),
+  focusProductIds: z.array(cuidSchema).optional(),
+  includeAiSuggestions: z.boolean().default(true),
+});
+
+export const agentWorkflowGenerateSchema = z.object({
+  decisionPackageId: cuidSchema,
+  decision: z.enum(["accept", "reject", "defer", "partial"]),
+  decisionNotes: z.string().max(5000).optional(),
+  modifications: z.object({
+    skipSteps: z.array(z.string()).optional(),
+    addSteps: z.array(z.object({
+      name: z.string(),
+      description: z.string(),
+      assignee: z.string().optional(),
+    })).optional(),
+    changeTimeline: z.object({ deadline: z.string() }).optional(),
+  }).optional(),
+});
+
+export const agentConversationMessageSchema = z.object({
+  content: z.string().min(1).max(5000),
+  contextFilters: z.object({
+    jurisdiction: z.array(z.string()).optional(),
+    productCategory: z.array(z.string()).optional(),
+  }).optional(),
+});
+
 // ============================================================================
 // Diagnostic schemas
 // ============================================================================

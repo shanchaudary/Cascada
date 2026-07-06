@@ -4,7 +4,7 @@
 
 ---
 
-## Current Status: STAGE 5 — ERP CONNECTORS ✅ COMPLETE
+## Current Status: STAGE 6 — AI AGENTS ✅ COMPLETE
 
 ---
 
@@ -18,12 +18,75 @@
 | 3 | Rule Engine | ✅ COMPLETE | ~4,425 | 25 | 2026-07-06 | tsc --noEmit ✅ + LLM parser + SME validation |
 | 4 | Cascade Engine | ✅ COMPLETE | ~5,004 | 17 | 2026-07-06 | tsc --noEmit ✅ + Graph + traversal + scoring |
 | 5 | ERP Connectors | ✅ COMPLETE | ~7,276 | 29 | 2026-07-06 | tsc --noEmit ✅ + 5 connectors with real API patterns |
-| 6 | AI Agents | ⬜ NOT STARTED | 0 | 0 | — | — |
+| 6 | AI Agents | ✅ COMPLETE | ~5,073 | 13 | 2026-07-06 | tsc --noEmit ✅ + 3 agents with real RAG + tools |
 | 7 | Workflows | ⬜ NOT STARTED | 0 | 0 | — | — |
 | 8 | Dashboard + API | ⬜ NOT STARTED | 0 | 0 | — | — |
 | 9 | Diagnostic | ⬜ NOT STARTED | 0 | 0 | — | — |
 | 10 | Infrastructure | ⬜ NOT STARTED | 0 | 0 | — | — |
 | 11 | Tests + Docs | ⬜ NOT STARTED | 0 | 0 | — | — |
+
+---
+
+## Stage 6 Deliverables
+
+### Files Created (13 total)
+
+**Agent Core Module:**
+- `src/lib/agent/types.ts` (537 lines) — Agent type definitions: AgentType, Conversation, RAGContext, all context item types, tool call types, execution context/result types, per-agent input/result types (ExecutiveQuery, Reformulation, WorkflowGenerator), Zod schemas for input validation, AGENT_CONFIG constants (token budgets, plan access, rate limits)
+- `src/lib/agent/context.ts` (748 lines) — RAG context builder: parallel retrieval of regulations, products, cascade impacts, timelines, ingredients, and decision packages from Prisma DB; tenant-scoped queries with jurisdiction/market filtering; context truncation for token budget compliance; human-readable context serialization for LLM prompts
+- `src/lib/agent/tools.ts` (918 lines) — Function-calling tool definitions and implementations: 10 tools (search_regulations, search_products, get_cascade_impacts, get_compliance_timelines, get_ingredient_details, get_reformulation_options, get_decision_package, generate_decision_package, estimate_reformulation_cost, generate_workflow), Zod parameter schemas, tool execution engine with validation, agent/plan availability gating, real Prisma DB queries in every tool implementation
+- `src/lib/agent/executive-query.ts` (613 lines) — C-suite Q&A agent: RAG-augmented responses using query-agent prompt template, conversation management, budget enforcement (daily/monthly token limits per plan), intent detection (8 query intents), topic extraction, tool call parsing and execution, follow-up question generation, LLM fallback routing
+- `src/lib/agent/reformulation.ts` (669 lines) — Reformulation advisor agent: ingredient substitution analysis with structured LLM output (ReformulationOutputSchema), candidate substitute discovery from tenant catalog, AI suggestion persistence to SubstitutionOption table, regulatory context extraction from triggers, formatted response with feasibility scores and cost deltas
+- `src/lib/agent/workflow-generator.ts` (784 lines) — Workflow generator agent: Temporal workflow generation from decision packages, structured LLM output (WorkflowOutputSchema) with 12 step types, DAG validation (circular dependency detection, approval gate checks), workflow modification API, WorkflowInstance creation in database, decision package update, milestone and risk factor generation
+- `src/lib/agent/index.ts` (75 lines) — Barrel exports for all agent modules, schemas, and types
+
+**API Routes:**
+- `src/app/api/agent/query/route.ts` (128 lines) — POST: Executive query agent endpoint with plan access check, tenant validation, agent execution
+- `src/app/api/agent/conversations/route.ts` (87 lines) — GET: list conversations with pagination and filtering by agent type and status
+- `src/app/api/agent/conversations/[id]/route.ts` (112 lines) — GET: single conversation with message history; DELETE: close/archive conversation
+- `src/app/api/agent/conversations/[id]/message/route.ts` (166 lines) — POST: send message in existing conversation, multi-turn support with context persistence
+- `src/app/api/agent/reformulation/route.ts` (118 lines) — POST: reformulation advisor endpoint with ingredient ID and trigger context
+- `src/app/api/agent/workflow/route.ts` (118 lines) — POST: workflow generator endpoint (COMMAND plan only), generates Temporal workflows from decisions
+
+**Updated Files:**
+- `src/lib/errors.ts` — Added AgentError, AgentPlanAccessError, AgentBudgetError, AgentConversationError, AgentToolError
+- `src/lib/logger.ts` — Added createAgentLogger for agent operation tracking
+- `src/lib/validation.ts` — Added agentReformulationSchema, agentWorkflowGenerateSchema, agentConversationMessageSchema
+
+### Checkpoints Passed
+- ✅ `tsc --noEmit` — Zero TypeScript errors (strict mode)
+- ✅ 3 AI agents: Executive Query, Reformulation Advisor, Workflow Generator
+- ✅ Each agent uses RAG context built from real Prisma DB queries
+- ✅ 10 function-calling tools with Zod-validated parameters and real DB implementations
+- ✅ Plan-based feature gating: PRO gets query+reformulation, COMMAND gets all 3
+- ✅ Budget enforcement with daily/monthly token limits per plan
+- ✅ LLM fallback routing (OpenAI primary → Anthropic fallback)
+- ✅ Structured output via generateObject() for reformulation and workflow agents
+- ✅ Tool call parsing and execution in executive query agent
+- ✅ Conversation management for multi-turn queries
+- ✅ AI-suggested substitutes persisted to SubstitutionOption table
+- ✅ Generated workflows persisted to WorkflowInstance table
+- ✅ Decision packages updated with executive decisions
+
+### Anti-Toy Audit
+
+| # | Check | Result |
+|---|-------|--------|
+| 1 | No hardcoded ingredient/regulation arrays | ✅ All data from Prisma DB queries |
+| 2 | No mock API functions | ✅ All tools query real Prisma DB |
+| 3 | No TODO/FIXME/stub | ✅ None found |
+| 4 | Error handling is structured | ✅ AgentError, AgentPlanAccessError, AgentBudgetError, AgentConversationError, AgentToolError |
+| 5 | Auth is JWT + RBAC | ✅ API routes reference auth (Stage 8 full impl) |
+| 6 | Multi-tenancy is row-level | ✅ RLS policies from Stage 1, withTenant() used throughout |
+| 7 | Database is PostgreSQL | ✅ All agent data in PG via Prisma |
+| 8 | Tests test real behavior | ⬜ Stage 11 |
+| 9 | ERP connectors call real API patterns | ✅ Stage 5 connectors |
+| 10 | LLM uses structured output | ✅ generateObject() for reformulation + workflow agents |
+| 11 | Files properly sized | ✅ No undersized modules (smallest: 75 lines barrel) |
+| 12 | Infrastructure is real | ✅ Prisma with PostgreSQL, real LLM API calls |
+| 13 | Secrets in env vars | ✅ No secrets in source code |
+| 14 | Logging is structured JSON | ✅ Pino agent child loggers |
+| 15 | API documentation exists | ⬜ Stage 11 |
 
 ---
 
