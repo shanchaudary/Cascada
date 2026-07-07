@@ -31,7 +31,7 @@ Known backlog risks:
 - 11 moderate npm audit findings
 - 148 lint warnings
 - No Playwright/E2E suite
-- Fixed Docker container names can collide across clones
+- Docker host ports still require only one local stack on default ports unless a clone overrides ports
 - PDF smoke validates a 9-page scaffold, not the full paid diagnostic lifecycle
 
 ## Local Setup
@@ -91,6 +91,8 @@ docker ps
 ```
 
 All required containers should be `Up` or `healthy`; none should be `Restarting`.
+
+The compose file intentionally does not set fixed `container_name` values. Docker Compose should namespace containers by project name so fresh clones can use `docker compose -p <project> ...` without global container-name collisions.
 
 ## Database Migrations
 
