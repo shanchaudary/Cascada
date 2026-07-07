@@ -11,9 +11,11 @@ function read(relativePath: string): string {
 describe("auth architecture", () => {
   it("keeps the NextAuth catch-all route as the session owner", () => {
     const nextAuthRoute = read("src/app/api/auth/[...nextauth]/route.ts");
+    const authConfig = read("src/lib/auth.ts");
 
     expect(nextAuthRoute).toContain('import { handlers } from "@/lib/auth"');
     expect(nextAuthRoute).toContain("export const { GET, POST } = handlers");
+    expect(authConfig).toContain("trustHost: true");
   });
 
   it("uses custom login only as the app JSON facade around NextAuth credentials", () => {
