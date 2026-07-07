@@ -2,6 +2,38 @@
 
 Cascada is a Next.js 15 application for food manufacturing regulatory cascade impact analysis. It uses PostgreSQL 16 with Apache AGE, Redis, Temporal, Prisma 6, NextAuth/Auth.js, and Vitest.
 
+## Install/Auth Baseline
+
+Baseline tag: `install-auth-baseline-2026-07-07`
+
+Accepted baseline commit:
+
+```text
+5b191680c9d35cc3603ce82d635f1b50ed9190fc Trust Auth.js host for production session route
+```
+
+This baseline was verified on July 7, 2026 from a true fresh GitHub clone with no working-tree overlay. The verification passed:
+
+- Fresh GitHub clone install
+- Docker stack startup and health checks
+- Prisma generate, migrate, and seed
+- TypeScript typecheck
+- ESLint command, with existing warnings
+- Vitest unit/regression suite
+- Production build
+- Demo login with `admin@demofoods.com` / `cascada-demo-2026`
+- `/dashboard` route
+- `/api/auth/session` before and after login
+- `/api/tenants/current`, returning `401` before login and `200` after login
+
+Known backlog risks:
+
+- 11 moderate npm audit findings
+- 148 lint warnings
+- No Playwright/E2E suite
+- Fixed Docker container names can collide across clones
+- PDF smoke validates a 9-page scaffold, not the full paid diagnostic lifecycle
+
 ## Local Setup
 
 Requirements:
