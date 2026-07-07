@@ -93,6 +93,7 @@ export function ExposureMap({ data, isLoading = false }: ExposureMapProps) {
     direction: "desc",
   });
   const [search, setSearch] = useState("");
+  const exposureData = useMemo(() => (Array.isArray(data) ? data : []), [data]);
 
   const handleSort = useCallback(
     (key: keyof ExposureByState) => {
@@ -105,7 +106,7 @@ export function ExposureMap({ data, isLoading = false }: ExposureMapProps) {
   );
 
   const filteredAndSorted = useMemo(() => {
-    let items = [...data];
+    let items = [...exposureData];
 
     // Search filter
     if (search.trim()) {
@@ -135,7 +136,7 @@ export function ExposureMap({ data, isLoading = false }: ExposureMapProps) {
     });
 
     return items;
-  }, [data, search, sort]);
+  }, [exposureData, search, sort]);
 
   // Loading skeleton
   if (isLoading) {
@@ -168,7 +169,7 @@ export function ExposureMap({ data, isLoading = false }: ExposureMapProps) {
             Regulatory Exposure by State
           </h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            {data.length} jurisdictions tracked
+            {exposureData.length} jurisdictions tracked
           </p>
         </div>
         <div className="relative">
@@ -288,10 +289,10 @@ export function ExposureMap({ data, isLoading = false }: ExposureMapProps) {
       {filteredAndSorted.length > 0 && (
         <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50/50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/50">
           <span className="text-sm text-slate-500 dark:text-slate-400">
-            Showing {filteredAndSorted.length} of {data.length} jurisdictions
+            Showing {filteredAndSorted.length} of {exposureData.length} jurisdictions
           </span>
           <span className="text-sm font-medium text-slate-900 dark:text-white">
-            Total exposure: {formatCurrency(data.reduce((sum, d) => sum + d.revenueAtRisk, 0), { compact: true })}
+            Total exposure: {formatCurrency(exposureData.reduce((sum, d) => sum + d.revenueAtRisk, 0), { compact: true })}
           </span>
         </div>
       )}

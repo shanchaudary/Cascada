@@ -109,6 +109,8 @@ const BAR_COLORS = {
 // CostChart component
 // ============================================================================
 export function CostChart({ data, isLoading = false }: CostChartProps) {
+  const costData = Array.isArray(data) ? data : [];
+
   if (isLoading) {
     return (
       <div className="rounded-lg border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
@@ -126,7 +128,7 @@ export function CostChart({ data, isLoading = false }: CostChartProps) {
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
-            data={data}
+            data={costData}
             margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
             barCategoryGap="20%"
           >

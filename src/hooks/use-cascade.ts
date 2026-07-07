@@ -3,6 +3,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient, ApiClientError } from "@/lib/api-client";
+import { normalizeCascadeTriggers } from "@/lib/dashboard-normalizers";
 import type {
   CascadeGraphStats,
   CascadeTriggerSummary,
@@ -128,10 +129,12 @@ export function useCascadeTriggers(status?: TriggerStatus, severity?: Severity) 
   return useQuery<CascadeTriggerSummary[], ApiClientError>({
     queryKey: cascadeKeys.triggers(status, severity),
     queryFn: () =>
-      apiClient.get<CascadeTriggerSummary[]>("/api/cascade/triggers", {
-        status,
-        severity,
-      }),
+      apiClient
+        .get<unknown>("/api/cascade/triggers", {
+          status,
+          severity,
+        })
+        .then(normalizeCascadeTriggers),
     staleTime: 30_000,
   });
 }

@@ -117,6 +117,7 @@ export function DataTable<T>({
   const [page, setPage] = useState(0);
   const [search, setSearch] = useState("");
   const [sortState, setSortState] = useState<SortState<T> | null>(null);
+  const tableData = useMemo(() => (Array.isArray(data) ? data : []), [data]);
 
   // Handle sort toggle
   const handleSort = useCallback(
@@ -142,7 +143,7 @@ export function DataTable<T>({
 
   // Filter and sort
   const processedData = useMemo(() => {
-    let items = [...data];
+    let items = [...tableData];
 
     // Search filter: check all string-convertible fields
     if (search.trim()) {
@@ -167,7 +168,7 @@ export function DataTable<T>({
     }
 
     return items;
-  }, [data, search, sortState, columns]);
+  }, [tableData, search, sortState, columns]);
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(processedData.length / pageSize));

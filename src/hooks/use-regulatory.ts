@@ -3,6 +3,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient, ApiClientError } from "@/lib/api-client";
+import { normalizePaginatedResponse } from "@/lib/dashboard-normalizers";
 import type { PaginatedResponse } from "@/types/api";
 import type { ParsedRule, SubstanceMatchResult } from "@/types/regulatory";
 import type { SourceStatus, SourceType, RuleType } from "@prisma/client";
@@ -123,10 +124,9 @@ export function useRegulatorySources(
   return useQuery<PaginatedResponse<RegulatorySourceItem>, ApiClientError>({
     queryKey: regulatoryKeys.sources(status, sourceType, page, limit),
     queryFn: () =>
-      apiClient.get<PaginatedResponse<RegulatorySourceItem>>(
-        "/api/regulatory/sources",
-        { status, sourceType, page, limit }
-      ),
+      apiClient
+        .get<unknown>("/api/regulatory/sources", { status, sourceType, page, limit })
+        .then((response) => normalizePaginatedResponse<RegulatorySourceItem>(response)),
     staleTime: 60_000,
   });
 }
@@ -197,10 +197,9 @@ export function useRegulatoryRules(
   return useQuery<PaginatedResponse<RegulatoryRuleItem>, ApiClientError>({
     queryKey: regulatoryKeys.rules(jurisdiction, ruleType, page, limit),
     queryFn: () =>
-      apiClient.get<PaginatedResponse<RegulatoryRuleItem>>(
-        "/api/regulatory/rules",
-        { jurisdiction, ruleType, page, limit }
-      ),
+      apiClient
+        .get<unknown>("/api/regulatory/rules", { jurisdiction, ruleType, page, limit })
+        .then((response) => normalizePaginatedResponse<RegulatoryRuleItem>(response)),
     staleTime: 60_000,
   });
 }

@@ -3,6 +3,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient, ApiClientError } from "@/lib/api-client";
+import { normalizeArray } from "@/lib/dashboard-normalizers";
 import type { ErpConnectionStatus } from "@/types/api";
 import type { ErpHealthStatus, SyncResult, MultiEntitySyncResult, ErpConnectionTestResult } from "@/types/erp";
 import type { ErpType, SyncStatus } from "@prisma/client";
@@ -54,7 +55,9 @@ export function useErpConnections() {
   return useQuery<ErpConnectionStatus[], ApiClientError>({
     queryKey: erpKeys.connections(),
     queryFn: () =>
-      apiClient.get<ErpConnectionStatus[]>("/api/erp-connections"),
+      apiClient
+        .get<unknown>("/api/erp-connections")
+        .then((response) => normalizeArray<ErpConnectionStatus>(response, ["connections", "items", "data"])),
     staleTime: 60_000,
     refetchInterval: 120_000,
   });

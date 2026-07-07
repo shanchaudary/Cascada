@@ -127,6 +127,8 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
 // SeverityDistribution component
 // ============================================================================
 export function SeverityDistribution({ data, isLoading = false }: SeverityDistributionProps) {
+  const severityData = Array.isArray(data) ? data : [];
+
   if (isLoading) {
     return (
       <div className="rounded-lg border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
@@ -138,14 +140,14 @@ export function SeverityDistribution({ data, isLoading = false }: SeverityDistri
     );
   }
 
-  const chartData = data.map((item) => ({
+  const chartData = severityData.map((item) => ({
     name: SEVERITY_LABELS[item.severity],
     value: item.count,
     severity: item.severity,
     fill: SEVERITY_COLORS[item.severity],
   }));
 
-  const total = data.reduce((sum, item) => sum + item.count, 0);
+  const total = severityData.reduce((sum, item) => sum + item.count, 0);
 
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
@@ -181,7 +183,7 @@ export function SeverityDistribution({ data, isLoading = false }: SeverityDistri
 
         {/* Legend / Stats */}
         <div className="flex flex-col gap-2">
-          {data.map((item) => {
+          {severityData.map((item) => {
             const percentage = total > 0 ? ((item.count / total) * 100).toFixed(1) : "0.0";
             return (
               <div key={item.severity} className="flex items-center gap-3">

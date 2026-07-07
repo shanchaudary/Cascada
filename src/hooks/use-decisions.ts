@@ -3,6 +3,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient, ApiClientError } from "@/lib/api-client";
+import { normalizePaginatedResponse } from "@/lib/dashboard-normalizers";
 import type { DecisionPackageSummary, PaginatedResponse } from "@/types/api";
 import type { Severity, TriggerStatus } from "@prisma/client";
 
@@ -95,10 +96,9 @@ export function useDecisions(status?: TriggerStatus, severity?: Severity) {
   return useQuery<PaginatedResponse<DecisionPackageSummary>, ApiClientError>({
     queryKey: decisionKeys.list(status, severity),
     queryFn: () =>
-      apiClient.get<PaginatedResponse<DecisionPackageSummary>>(
-        "/api/decisions",
-        { status, severity }
-      ),
+      apiClient
+        .get<unknown>("/api/decisions", { status, severity })
+        .then((response) => normalizePaginatedResponse<DecisionPackageSummary>(response, ["items", "decisions", "data"])),
     staleTime: 60_000,
   });
 }

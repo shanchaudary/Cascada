@@ -103,6 +103,8 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
 // TimelineChart component
 // ============================================================================
 export function TimelineChart({ data, isLoading = false }: TimelineChartProps) {
+  const timelineData = Array.isArray(data) ? data : [];
+
   if (isLoading) {
     return (
       <div className="rounded-lg border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
@@ -113,7 +115,7 @@ export function TimelineChart({ data, isLoading = false }: TimelineChartProps) {
   }
 
   // Transform data for horizontal bar chart
-  const chartData = [...data]
+  const chartData = [...timelineData]
     .sort((a, b) => a.daysRemaining - b.daysRemaining)
     .slice(0, 15)
     .map((item) => ({

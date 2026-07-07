@@ -106,6 +106,21 @@ For deployment-style migration application, use:
 npx prisma migrate deploy
 ```
 
+## Regulatory API Keys
+
+Local regulatory pipeline credentials go in `.env`, copied from `.env.example`:
+
+```text
+LEGISCAN_API_KEY=
+OPENFDA_API_KEY=
+FEDERAL_REGISTER_API_KEY=
+USDA_API_KEY=
+```
+
+These are platform-level data-source secrets. They are not tenant settings and should not be entered into normal frontend-accessible settings screens. For production, configure them in the hosting platform or secret manager used to run Cascada, such as deployment environment variables, Docker secrets, or Kubernetes secrets, then restart the app and background workers that run regulatory pipelines.
+
+The app must never expose the secret values to the browser. Admin UI may show configured/missing status, masked labels, test results, and last successful sync timestamps, but secret value storage and rotation should be handled by the platform secret store.
+
 ## Verification
 
 Run:
@@ -114,9 +129,19 @@ Run:
 npm run typecheck
 npm run lint
 npm test
+npm run build
 npx tsx scripts/smoke-pdf.ts
 ```
 
 `npm test` currently runs the committed Vitest unit/regression suite. No Playwright/E2E dependency or config is currently committed, so do not claim browser E2E coverage for this branch.
+
+Dashboard verification must distinguish route availability from hydrated client render:
+
+- `/dashboard` route status `200` only proves the route exists.
+- The dashboard is also checked by `tests/unit/dashboard-render.test.ts`, which renders the page with API-envelope-shaped dashboard data and fails if client render assumptions throw.
+- `tests/unit/exposure-page-render.test.ts` renders `/dashboard/exposure` with API-envelope-shaped exposure data.
+- `tests/unit/dashboard-components.test.ts` verifies defensive empty-state rendering for `DataTable` and `ExposureMap`.
+- `tests/unit/dashboard-normalizers.test.ts` covers empty, missing, paginated, and API-envelope trigger, exposure, product, and users payloads before severity/chart/table iteration.
+- Manual browser verification on July 7, 2026 used a fresh browser profile, confirmed `/api/tenants/current` returned `401` before login, logged in with `admin@demofoods.com` / `cascada-demo-2026`, confirmed `/api/auth/session` and `/api/tenants/current` returned `200` after login, and loaded `/dashboard`, `/dashboard/exposure`, `/dashboard/triggers`, `/dashboard/regulations`, `/dashboard/decisions`, `/dashboard/agent`, `/dashboard/diagnostic`, `/dashboard/settings`, and `/dashboard/integrations` with no active Next.js runtime dialog and no `allTriggers is not iterable` or `data is not iterable` error text. Settings `Profile`, `Team`, `Plan`, and `Data Sources` tabs were clicked and rendered without a runtime overlay.
 
 Current implemented app routes include `/`, `/login`, `/register`, `/dashboard`, `/dashboard/exposure`, `/dashboard/triggers`, `/dashboard/regulations`, `/dashboard/decisions`, `/dashboard/agent`, `/dashboard/settings`, `/dashboard/integrations`, and `/dashboard/diagnostic`.

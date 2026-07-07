@@ -3,6 +3,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { apiClient, ApiClientError } from "@/lib/api-client";
+import { normalizePaginatedResponse } from "@/lib/dashboard-normalizers";
 import type { IngredientWithExposure, ProductWithExposure, PaginatedResponse } from "@/types/api";
 import type { FormulationStatus } from "@prisma/client";
 
@@ -141,10 +142,11 @@ export function useIngredients(
   return useQuery<PaginatedResponse<IngredientWithExposure>, ApiClientError>({
     queryKey: dataKeys.ingredients(search, category, page, limit),
     queryFn: () =>
-      apiClient.get<PaginatedResponse<IngredientWithExposure>>(
-        "/api/ingredients",
-        { search, category, page, limit }
-      ),
+      apiClient
+        .get<unknown>("/api/ingredients", { search, category, page, limit })
+        .then((response) =>
+          normalizePaginatedResponse<IngredientWithExposure>(response, ["items", "ingredients", "data"])
+        ),
     staleTime: 60_000,
   });
 }
@@ -189,10 +191,11 @@ export function useFormulations(
   return useQuery<PaginatedResponse<FormulationDetail>, ApiClientError>({
     queryKey: dataKeys.formulations(status, page, limit),
     queryFn: () =>
-      apiClient.get<PaginatedResponse<FormulationDetail>>(
-        "/api/formulations",
-        { status, page, limit }
-      ),
+      apiClient
+        .get<unknown>("/api/formulations", { status, page, limit })
+        .then((response) =>
+          normalizePaginatedResponse<FormulationDetail>(response, ["items", "formulations", "data"])
+        ),
     staleTime: 60_000,
   });
 }
@@ -224,10 +227,11 @@ export function useProducts(
   return useQuery<PaginatedResponse<ProductWithExposure>, ApiClientError>({
     queryKey: dataKeys.products(search, category, page, limit),
     queryFn: () =>
-      apiClient.get<PaginatedResponse<ProductWithExposure>>(
-        "/api/products",
-        { search, category, page, limit }
-      ),
+      apiClient
+        .get<unknown>("/api/products", { search, category, page, limit })
+        .then((response) =>
+          normalizePaginatedResponse<ProductWithExposure>(response, ["items", "products", "data"])
+        ),
     staleTime: 60_000,
   });
 }

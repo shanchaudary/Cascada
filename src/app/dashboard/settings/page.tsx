@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import type { UserRole, Plan } from "@prisma/client";
 import {
   PageHeader,
@@ -11,7 +11,9 @@ import {
 } from "@/components/dashboard";
 import type { ColumnDef } from "@/components/dashboard";
 import { useAuthStore } from "@/stores/auth-store";
+import { useUIStore } from "@/stores/ui-store";
 import { apiClient } from "@/lib/api-client";
+import { normalizeArray } from "@/lib/dashboard-normalizers";
 import type { AuthUser } from "@/types/api";
 import { formatPlan } from "@/utils/formatting";
 
@@ -19,12 +21,13 @@ import { formatPlan } from "@/utils/formatting";
 // Settings Page — Profile / Team / Plan tabs
 // ============================================================================
 
-type TabId = "profile" | "team" | "plan";
+type TabId = "profile" | "team" | "plan" | "dataSources";
 
 const TABS: Array<{ id: TabId; label: string }> = [
   { id: "profile", label: "Profile" },
   { id: "team", label: "Team" },
   { id: "plan", label: "Plan" },
+  { id: "dataSources", label: "Data Sources" },
 ];
 
 const PLAN_INFO: Array<{ plan: Plan; label: string; price: string; features: string[] }> = [
@@ -63,6 +66,24 @@ interface TeamMemberRow {
   isActive: boolean;
 }
 
+interface DataSourceRow {
+  type: string;
+  label: string;
+  envVar: string;
+  required: boolean;
+  configured: boolean;
+  maskedValue: string;
+  lastSuccessfulSyncAt: string | null;
+  lastError: string | null;
+}
+
+interface DataSourceTestResponse {
+  type: string;
+  healthy: boolean;
+  checkedAt: string;
+  message: string;
+}
+
 function roleBadgeVariant(role: UserRole): "critical" | "high" | "medium" | "low" | "info" | "success" | "warning" | "default" {
   switch (role) {
     case "SUPER_ADMIN": return "critical";
@@ -72,6 +93,11 @@ function roleBadgeVariant(role: UserRole): "critical" | "high" | "medium" | "low
     case "VIEWER": return "default";
     default: return "default";
   }
+}
+
+function formatSyncDate(value: string | null): string {
+  if (!value) return "Never";
+  return new Date(value).toLocaleString();
 }
 
 const teamColumns: ColumnDef<TeamMemberRow>[] = [
@@ -113,6 +139,7 @@ const teamColumns: ColumnDef<TeamMemberRow>[] = [
 export default function SettingsPage() {
   const user = useAuthStore((s) => s.user);
   const updateProfile = useAuthStore((s) => s.updateProfile);
+  const addToast = useUIStore((s) => s.addToast);
   const toast = useToast();
 
   const [activeTab, setActiveTab] = useState<TabId>("profile");
@@ -120,6 +147,9 @@ export default function SettingsPage() {
   const [email, setEmail] = useState(user?.email ?? "");
   const [isSaving, setIsSaving] = useState(false);
   const [teamMembers, setTeamMembers] = useState<TeamMemberRow[]>([]);
+  const [dataSources, setDataSources] = useState<DataSourceRow[]>([]);
+  const [isLoadingDataSources, setIsLoadingDataSources] = useState(false);
+  const [testingSource, setTestingSource] = useState<string | null>(null);
 
   const isAdmin = user?.role === "TENANT_ADMIN" || user?.role === "SUPER_ADMIN";
 
@@ -127,17 +157,44 @@ export default function SettingsPage() {
   const loadTeamMembers = useCallback(async () => {
     if (!isAdmin) return;
     try {
-      const result = await apiClient.get<TeamMemberRow[]>("/api/tenants/current/users");
-      setTeamMembers(result);
+      const result = await apiClient.get<unknown>("/api/tenants/current/users");
+      setTeamMembers(normalizeArray<TeamMemberRow>(result, ["users", "items", "data"]));
     } catch {
-      toast.error("Failed to load team", "Could not fetch team members.");
+      addToast({
+        variant: "error",
+        title: "Failed to load team",
+        message: "Could not fetch team members.",
+        durationMs: 8000,
+      });
     }
-  }, [isAdmin, toast]);
+  }, [isAdmin, addToast]);
+
+  const loadDataSources = useCallback(async () => {
+    if (!isAdmin) return;
+    setIsLoadingDataSources(true);
+    try {
+      const result = await apiClient.get<unknown>("/api/settings/data-sources");
+      setDataSources(normalizeArray<DataSourceRow>(result, ["dataSources", "items", "data"]));
+    } catch {
+      addToast({
+        variant: "error",
+        title: "Failed to load data sources",
+        message: "Could not fetch regulatory data-source status.",
+        durationMs: 8000,
+      });
+    } finally {
+      setIsLoadingDataSources(false);
+    }
+  }, [isAdmin, addToast]);
 
   // Load team on mount if admin
-  useState(() => {
+  useEffect(() => {
     if (isAdmin) void loadTeamMembers();
-  });
+  }, [isAdmin, loadTeamMembers]);
+
+  useEffect(() => {
+    if (activeTab === "dataSources") void loadDataSources();
+  }, [activeTab, loadDataSources]);
 
   const handleSaveProfile = useCallback(async () => {
     setIsSaving(true);
@@ -155,6 +212,29 @@ export default function SettingsPage() {
       setIsSaving(false);
     }
   }, [name, email, updateProfile, toast]);
+
+  const handleTestDataSource = useCallback(async (source: DataSourceRow) => {
+    setTestingSource(source.type);
+    try {
+      const result = await apiClient.post<DataSourceTestResponse, { type: string }>(
+        "/api/settings/data-sources",
+        { type: source.type },
+      );
+
+      if (result.healthy) {
+        toast.success(`${source.label} connected`, result.message);
+      } else {
+        toast.warning(`${source.label} unavailable`, result.message);
+      }
+
+      await loadDataSources();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Connection test failed";
+      toast.error(`${source.label} test failed`, message);
+    } finally {
+      setTestingSource(null);
+    }
+  }, [loadDataSources, toast]);
 
   const currentPlan = (user?.tenantPlan ?? "DIAGNOSTIC") as Plan;
 
@@ -300,6 +380,86 @@ export default function SettingsPage() {
               );
             })}
           </div>
+        </div>
+      )}
+
+      {/* Data Sources tab */}
+      {activeTab === "dataSources" && (
+        <div>
+          {!isAdmin ? (
+            <EmptyState
+              title="Admin access required"
+              description="Only tenant administrators can view platform data-source status."
+            />
+          ) : isLoadingDataSources ? (
+            <div className="rounded-lg border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+              <div className="mb-4 h-5 w-48 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+              <div className="space-y-3">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <div key={index} className="h-16 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
+                ))}
+              </div>
+            </div>
+          ) : dataSources.length === 0 ? (
+            <EmptyState
+              title="No data sources"
+              description="Regulatory data-source status will appear after the platform configuration is available."
+            />
+          ) : (
+            <div className="overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
+              <div className="grid gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-medium uppercase text-slate-500 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400 md:grid-cols-[1fr_140px_180px_140px]">
+                <span>Source</span>
+                <span>Status</span>
+                <span>Last successful sync</span>
+                <span className="md:text-right">Connection</span>
+              </div>
+              <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                {dataSources.map((source) => (
+                  <div
+                    key={source.type}
+                    className="grid gap-3 px-4 py-4 md:grid-cols-[1fr_140px_180px_140px] md:items-center"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-slate-900 dark:text-white">
+                          {source.label}
+                        </p>
+                        {source.required && <Badge variant="info">Required</Badge>}
+                      </div>
+                      <p className="mt-1 font-mono text-xs text-slate-500 dark:text-slate-400">
+                        {source.envVar}
+                      </p>
+                    </div>
+                    <div>
+                      <Badge
+                        variant={source.configured ? "success" : source.required ? "warning" : "default"}
+                      >
+                        {source.maskedValue}
+                      </Badge>
+                      {source.lastError && (
+                        <p className="mt-1 line-clamp-2 text-xs text-red-600 dark:text-red-400">
+                          {source.lastError}
+                        </p>
+                      )}
+                    </div>
+                    <p className="text-sm text-slate-600 dark:text-slate-300">
+                      {formatSyncDate(source.lastSuccessfulSyncAt)}
+                    </p>
+                    <div className="md:text-right">
+                      <button
+                        type="button"
+                        onClick={() => void handleTestDataSource(source)}
+                        disabled={testingSource === source.type}
+                        className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+                      >
+                        {testingSource === source.type ? "Testing..." : "Test"}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

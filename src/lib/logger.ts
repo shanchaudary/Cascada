@@ -1,6 +1,8 @@
 // Cascada — Structured JSON Logger (Pino)
 // No console.log allowed — all logging goes through this module.
-// Production: JSON structured logs. Development: pretty-printed.
+// JSON structured logs in all environments.
+// Avoid pino worker transports here because Next dev bundling can rewrite
+// worker paths outside the project on Windows.
 
 import pino from "pino";
 
@@ -8,25 +10,12 @@ const isDevelopment = process.env["NODE_ENV"] === "development";
 
 const logger = pino({
   level: process.env["LOG_LEVEL"] || (isDevelopment ? "debug" : "info"),
-  ...(isDevelopment
-    ? {
-        transport: {
-          target: "pino-pretty",
-          options: {
-            colorize: true,
-            translateTime: "SYS:yyyy-mm-dd HH:MM:ss.l",
-            ignore: "pid,hostname",
-          },
-        },
-      }
-    : {
-        formatters: {
-          level(level) {
-            return { level };
-          },
-        },
-        timestamp: pino.stdTimeFunctions.isoTime,
-      }),
+  formatters: {
+    level(level) {
+      return { level };
+    },
+  },
+  timestamp: pino.stdTimeFunctions.isoTime,
   serializers: {
     err: pino.stdSerializers.err,
     error: pino.stdSerializers.err,

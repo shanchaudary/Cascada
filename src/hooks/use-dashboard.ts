@@ -4,6 +4,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import type { ApiClientError } from "@/lib/api-client";
+import {
+  normalizeCascadeTriggers,
+  normalizeDashboardSummary,
+  normalizeExposureByState,
+  normalizeProductExposureResponse,
+  normalizeUpcomingDeadlines,
+} from "@/lib/dashboard-normalizers";
 import type {
   DashboardSummary,
   ExposureByState,
@@ -12,7 +19,6 @@ import type {
   CascadeTriggerSummary,
   PaginatedResponse,
 } from "@/types/api";
-import type { CascadeCostSummary } from "@/types/cascade";
 import type { Severity } from "@prisma/client";
 
 // ============================================================================
@@ -40,7 +46,8 @@ export const dashboardKeys = {
 export function useDashboardSummary() {
   return useQuery<DashboardSummary, ApiClientError>({
     queryKey: dashboardKeys.summary(),
-    queryFn: () => apiClient.get<DashboardSummary>("/api/dashboard/summary"),
+    queryFn: () =>
+      apiClient.get<unknown>("/api/dashboard/summary").then(normalizeDashboardSummary),
     staleTime: 60_000,
     refetchInterval: 120_000,
   });
@@ -54,9 +61,11 @@ export function useExposureByState(minSeverity?: Severity) {
   return useQuery<ExposureByState[], ApiClientError>({
     queryKey: dashboardKeys.exposureByState(minSeverity),
     queryFn: () =>
-      apiClient.get<ExposureByState[]>("/api/dashboard/exposure-by-state", {
-        minSeverity,
-      }),
+      apiClient
+        .get<unknown>("/api/dashboard/exposure-by-state", {
+          minSeverity,
+        })
+        .then(normalizeExposureByState),
     staleTime: 60_000,
   });
 }
@@ -69,10 +78,9 @@ export function useExposureByProduct(category?: string, page?: number, limit?: n
   return useQuery<PaginatedResponse<ProductWithExposure>, ApiClientError>({
     queryKey: dashboardKeys.exposureByProduct(category, page, limit),
     queryFn: () =>
-      apiClient.get<PaginatedResponse<ProductWithExposure>>(
-        "/api/dashboard/exposure-by-product",
-        { category, page, limit }
-      ),
+      apiClient
+        .get<unknown>("/api/dashboard/exposure-by-product", { category, page, limit })
+        .then(normalizeProductExposureResponse),
     staleTime: 60_000,
   });
 }
@@ -85,9 +93,11 @@ export function useUpcomingDeadlines(daysAhead?: number) {
   return useQuery<UpcomingDeadline[], ApiClientError>({
     queryKey: dashboardKeys.upcomingDeadlines(daysAhead),
     queryFn: () =>
-      apiClient.get<UpcomingDeadline[]>("/api/dashboard/upcoming-deadlines", {
-        daysAhead,
-      }),
+      apiClient
+        .get<unknown>("/api/dashboard/upcoming-deadlines", {
+          daysAhead,
+        })
+        .then(normalizeUpcomingDeadlines),
     staleTime: 30_000,
     refetchInterval: 60_000,
   });
@@ -101,10 +111,12 @@ export function useRecentTriggers(limit?: number, severity?: Severity) {
   return useQuery<CascadeTriggerSummary[], ApiClientError>({
     queryKey: dashboardKeys.recentTriggers(limit, severity),
     queryFn: () =>
-      apiClient.get<CascadeTriggerSummary[]>("/api/dashboard/recent-triggers", {
-        limit,
-        severity,
-      }),
+      apiClient
+        .get<unknown>("/api/dashboard/recent-triggers", {
+          limit,
+          severity,
+        })
+        .then(normalizeCascadeTriggers),
     staleTime: 30_000,
   });
 }
@@ -114,9 +126,9 @@ export function useRecentTriggers(limit?: number, severity?: Severity) {
 // ============================================================================
 
 export function useCostEstimates() {
-  return useQuery<CascadeCostSummary, ApiClientError>({
+  return useQuery<unknown, ApiClientError>({
     queryKey: dashboardKeys.costEstimates(),
-    queryFn: () => apiClient.get<CascadeCostSummary>("/api/dashboard/cost-estimates"),
+    queryFn: () => apiClient.get<unknown>("/api/dashboard/cost-estimates"),
     staleTime: 120_000,
   });
 }

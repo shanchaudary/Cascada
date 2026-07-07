@@ -3,6 +3,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient, ApiClientError } from "@/lib/api-client";
+import { normalizeArray, normalizePaginatedResponse } from "@/lib/dashboard-normalizers";
 import type { PaginatedResponse } from "@/types/api";
 import type { WorkflowStatus } from "@prisma/client";
 
@@ -88,10 +89,11 @@ export function useWorkflows(status?: WorkflowStatus, workflowType?: string) {
   return useQuery<PaginatedResponse<WorkflowInstanceItem>, ApiClientError>({
     queryKey: workflowKeys.list(status, workflowType),
     queryFn: () =>
-      apiClient.get<PaginatedResponse<WorkflowInstanceItem>>(
-        "/api/workflows",
-        { status, workflowType }
-      ),
+      apiClient
+        .get<unknown>("/api/workflows", { status, workflowType })
+        .then((response) =>
+          normalizePaginatedResponse<WorkflowInstanceItem>(response, ["items", "workflows", "data"])
+        ),
     staleTime: 30_000,
     refetchInterval: 60_000,
   });
@@ -161,7 +163,9 @@ export function useWorkflowSteps(id: string) {
   return useQuery<WorkflowStepDetail[], ApiClientError>({
     queryKey: workflowKeys.steps(id),
     queryFn: () =>
-      apiClient.get<WorkflowStepDetail[]>(`/api/workflows/${id}/steps`),
+      apiClient
+        .get<unknown>(`/api/workflows/${id}/steps`)
+        .then((response) => normalizeArray<WorkflowStepDetail>(response, ["steps", "items", "data"])),
     enabled: Boolean(id),
     staleTime: 15_000,
     refetchInterval: 30_000,

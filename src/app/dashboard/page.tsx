@@ -2,7 +2,6 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
-import type { Severity } from "@prisma/client";
 import {
   StatCard,
   SeverityDistribution,
@@ -21,6 +20,12 @@ import {
   useCostEstimates,
   useCascadeTriggers,
 } from "@/hooks";
+import {
+  buildCostChartData,
+  buildSeverityDistribution,
+  normalizeCascadeTriggers,
+  normalizeUpcomingDeadlines,
+} from "@/lib/dashboard-normalizers";
 import { formatCurrency } from "@/utils/formatting";
 
 // ============================================================================
@@ -34,29 +39,24 @@ export default function DashboardPage() {
   const { data: costSummary, isLoading: costLoading } = useCostEstimates();
   const { data: allTriggers } = useCascadeTriggers();
 
+  const recentTriggerItems = useMemo(
+    () => normalizeCascadeTriggers(recentTriggers),
+    [recentTriggers]
+  );
+
+  const deadlineItems = useMemo(
+    () => normalizeUpcomingDeadlines(deadlines),
+    [deadlines]
+  );
+
   // Compute severity distribution from all triggers
   const severityData: SeverityCount[] = useMemo(() => {
-    if (!allTriggers) return [];
-    const counts: Partial<Record<Severity, number>> = {};
-    for (const t of allTriggers) {
-      counts[t.severity] = (counts[t.severity] ?? 0) + 1;
-    }
-    return (Object.entries(counts) as Array<[Severity, number]>).map(
-      ([severity, count]) => ({ severity, count })
-    );
+    return buildSeverityDistribution(allTriggers);
   }, [allTriggers]);
 
   // Transform cost summary into chart data
   const costChartData: CostEstimateDataPoint[] = useMemo(() => {
-    if (!costSummary) return [];
-    // Group costs by trigger using reformulation + label change costs
-    return costSummary.reformulationCosts.slice(0, 8).map((rc) => ({
-      name: rc.ingredientName,
-      reformulation: rc.bestOption?.totalCost ?? 0,
-      labelChange: 0,
-      withdrawal: 0,
-      penalty: 0,
-    }));
+    return buildCostChartData(costSummary);
   }, [costSummary]);
 
   const isPageLoading = summaryLoading && triggersLoading && deadlinesLoading && costLoading;
@@ -180,7 +180,7 @@ export default function DashboardPage() {
                 <div key={i} className="h-20 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800" />
               ))}
             </div>
-          ) : !recentTriggers || recentTriggers.length === 0 ? (
+          ) : recentTriggerItems.length === 0 ? (
             <EmptyState
               title="No recent triggers"
               description="New regulatory triggers will appear here when detected."
@@ -195,7 +195,7 @@ export default function DashboardPage() {
             />
           ) : (
             <div className="space-y-3">
-              {recentTriggers.map((trigger) => (
+              {recentTriggerItems.map((trigger) => (
                 <TriggerCard key={trigger.id} trigger={trigger} />
               ))}
             </div>
@@ -203,7 +203,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Upcoming Deadlines Timeline */}
-        <TimelineChart data={deadlines ?? []} isLoading={deadlinesLoading} />
+        <TimelineChart data={deadlineItems} isLoading={deadlinesLoading} />
       </div>
     </div>
   );
