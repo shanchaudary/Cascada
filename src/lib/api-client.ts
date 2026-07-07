@@ -1,5 +1,5 @@
 // Cascada — Type-safe API Client
-// Wrapper around fetch with automatic auth injection, error mapping, and generics.
+// Wrapper around fetch with cookie credentials, error mapping, and generics.
 
 import type { ApiError, ApiResponse, PaginatedResponse } from "@/types/api";
 
@@ -7,10 +7,15 @@ import type { ApiError, ApiResponse, PaginatedResponse } from "@/types/api";
 // Configuration
 // ============================================================================
 
-const BASE_URL =
-  typeof window !== "undefined"
-    ? (process.env["NEXT_PUBLIC_APP_URL"] ?? "")
-    : (process.env["NEXTAUTH_URL"] ?? "http://localhost:3000");
+export function resolveBaseUrl(): string {
+  if (typeof window !== "undefined") {
+    const publicUrl = process.env["NEXT_PUBLIC_APP_URL"];
+    return publicUrl && publicUrl.trim().length > 0 ? publicUrl : window.location.origin;
+  }
+
+  const serverUrl = process.env["NEXTAUTH_URL"];
+  return serverUrl && serverUrl.trim().length > 0 ? serverUrl : "http://localhost:3000";
+}
 
 // ============================================================================
 // Error types
@@ -38,9 +43,7 @@ export class ApiClientError extends Error {
 
 async function getAuthToken(): Promise<string | null> {
   try {
-    const { getSession } = await import("next-auth/react");
-    const session = await getSession();
-    return session?.user ? "authenticated" : null;
+    return null;
   } catch {
     // Server-side or session unavailable — cookies handle auth on API routes
     return null;
@@ -60,8 +63,11 @@ interface RequestOptions {
   signal?: AbortSignal;
 }
 
-function buildUrl(path: string, params?: Record<string, string | number | boolean | undefined>): string {
-  const url = new URL(path, BASE_URL);
+export function buildUrl(
+  path: string,
+  params?: Record<string, string | number | boolean | undefined>,
+): string {
+  const url = new URL(path, resolveBaseUrl());
   if (params) {
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined) {
@@ -165,7 +171,7 @@ export const apiClient = {
   async get<TResponse>(
     path: string,
     params?: Record<string, string | number | boolean | undefined>,
-    options?: { signal?: AbortSignal; headers?: Record<string, string> }
+    options?: { signal?: AbortSignal; headers?: Record<string, string> },
   ): Promise<TResponse> {
     return request<TResponse>({
       method: "GET",
@@ -182,7 +188,7 @@ export const apiClient = {
   async post<TResponse, TBody = unknown>(
     path: string,
     body?: TBody,
-    options?: { signal?: AbortSignal; headers?: Record<string, string> }
+    options?: { signal?: AbortSignal; headers?: Record<string, string> },
   ): Promise<TResponse> {
     return request<TResponse>({
       method: "POST",
@@ -199,7 +205,7 @@ export const apiClient = {
   async patch<TResponse, TBody = unknown>(
     path: string,
     body?: TBody,
-    options?: { signal?: AbortSignal; headers?: Record<string, string> }
+    options?: { signal?: AbortSignal; headers?: Record<string, string> },
   ): Promise<TResponse> {
     return request<TResponse>({
       method: "PATCH",
@@ -215,7 +221,7 @@ export const apiClient = {
    */
   async del<TResponse = void>(
     path: string,
-    options?: { signal?: AbortSignal; headers?: Record<string, string> }
+    options?: { signal?: AbortSignal; headers?: Record<string, string> },
   ): Promise<TResponse> {
     return request<TResponse>({
       method: "DELETE",
@@ -232,7 +238,7 @@ export const apiClient = {
 
 export async function fetchPaginated<TItem>(
   path: string,
-  params: Record<string, string | number | boolean | undefined> = {}
+  params: Record<string, string | number | boolean | undefined> = {},
 ): Promise<PaginatedResponse<TItem>> {
   const url = buildUrl(path, params);
   const headers = await buildHeaders();

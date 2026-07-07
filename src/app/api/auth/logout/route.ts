@@ -6,11 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import logger, { createTenantLogger } from "@/lib/logger";
 import { auth, signOut } from "@/lib/auth";
-import {
-  AuthenticationError,
-  CascadaError,
-  toError,
-} from "@/lib/errors";
+import { CascadaError, toError } from "@/lib/errors";
 
 // POST /api/auth/logout
 export async function POST(request: NextRequest) {
@@ -80,6 +76,12 @@ export async function POST(request: NextRequest) {
 
     // Clear NextAuth session cookies
     const cookieNames = [
+      "authjs.session-token",
+      "__Secure-authjs.session-token",
+      "authjs.csrf-token",
+      "__Host-authjs.csrf-token",
+      "authjs.callback-url",
+      "__Secure-authjs.callback-url",
       "next-auth.session-token",
       "__Secure-next-auth.session-token",
       "next-auth.csrf-token",

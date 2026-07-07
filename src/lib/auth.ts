@@ -11,6 +11,10 @@ import bcrypt from "bcryptjs";
 // Password hashing configuration
 export const SALT_ROUNDS = 12;
 
+function isDevCredentialModeEnabled(): boolean {
+  return process.env.NODE_ENV !== "production" && process.env["CASCADA_DEV_AUTH"] !== "false";
+}
+
 /**
  * Hash a plaintext password using bcrypt.
  */
@@ -21,10 +25,7 @@ export async function hashPassword(password: string): Promise<string> {
 /**
  * Verify a plaintext password against a bcrypt hash.
  */
-export async function verifyPassword(
-  password: string,
-  hash: string
-): Promise<boolean> {
+export async function verifyPassword(password: string, hash: string): Promise<boolean> {
   return bcrypt.compare(password, hash);
 }
 
@@ -42,10 +43,7 @@ const ROLE_HIERARCHY: Record<string, number> = {
   VIEWER: 20,
 };
 
-export function hasPermission(
-  userRole: string,
-  requiredRole: string
-): boolean {
+export function hasPermission(userRole: string, requiredRole: string): boolean {
   const userLevel = ROLE_HIERARCHY[userRole] ?? 0;
   const requiredLevel = ROLE_HIERARCHY[requiredRole] ?? 0;
   return userLevel >= requiredLevel;
@@ -106,6 +104,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
+        tenantSlug: { label: "Organization slug", type: "text" },
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
@@ -115,6 +114,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         const email = credentials.email as string;
         const password = credentials.password as string;
+        const tenantSlug =
+          typeof credentials.tenantSlug === "string" && credentials.tenantSlug.trim().length > 0
+            ? credentials.tenantSlug.trim()
+            : undefined;
 
         // Search by email across tenants
         // In production, the login form captures the tenant slug for disambiguation
@@ -128,18 +131,25 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
 
-        // For MVP, take the first active user record
-        // Multi-tenant login will be handled by tenant selection UI later
-        const userRecord = users[0];
+        const userRecord = tenantSlug
+          ? users.find((user) => user.tenant.slug === tenantSlug)
+          : users[0];
         if (!userRecord) {
-          logger.warn({ msg: "No user record found", email });
+          logger.warn({ msg: "No user record found", email, tenantSlug });
           return null;
         }
 
-        // Password verification will be implemented with the AuthAccount model
-        // For now, this is a placeholder for the authentication flow structure
-        // In production: const isValid = await verifyPassword(password, userRecord.passwordHash);
-        const isValid = password.length >= 8; // Temporary: replace with real verification
+        const isValid = userRecord.passwordHash
+          ? await verifyPassword(password, userRecord.passwordHash)
+          : isDevCredentialModeEnabled() && password.length >= 8;
+
+        if (!userRecord.passwordHash && process.env.NODE_ENV === "production") {
+          logger.error({
+            msg: "Credential login denied because user has no password hash",
+            email,
+            tenantSlug,
+          });
+        }
 
         if (!isValid) {
           logger.warn({ msg: "Invalid password attempt", email });

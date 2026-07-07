@@ -7,12 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import logger, { createTenantLogger } from "@/lib/logger";
 import { auth } from "@/lib/auth";
-import {
-  AuthenticationError,
-  NotFoundError,
-  CascadaError,
-  toError,
-} from "@/lib/errors";
+import { AuthenticationError, NotFoundError, CascadaError, toError } from "@/lib/errors";
 
 // GET /api/auth/me
 export async function GET(request: NextRequest) {
@@ -23,10 +18,7 @@ export async function GET(request: NextRequest) {
     const session = await auth();
 
     if (!session?.user) {
-      logger.warn(
-        { action: "me_no_session" },
-        "Profile request without an active session"
-      );
+      logger.warn({ action: "me_no_session" }, "Profile request without an active session");
       throw new AuthenticationError("Authentication required to access profile");
     }
 
@@ -38,7 +30,7 @@ export async function GET(request: NextRequest) {
     if (!userId) {
       logger.warn(
         { action: "me_malformed_session" },
-        "Profile request with session missing user ID"
+        "Profile request with session missing user ID",
       );
       throw new AuthenticationError("Session is missing user identifier");
     }
@@ -68,17 +60,14 @@ export async function GET(request: NextRequest) {
     });
 
     if (!userRecord) {
-      logger.warn(
-        { userId, action: "me_user_not_found" },
-        "Profile request for non-existent user"
-      );
+      logger.warn({ userId, action: "me_user_not_found" }, "Profile request for non-existent user");
       throw new NotFoundError("User", userId);
     }
 
     if (!userRecord.isActive) {
       logger.warn(
         { userId, action: "me_user_deactivated" },
-        "Profile request for deactivated user"
+        "Profile request for deactivated user",
       );
       throw new AuthenticationError("User account has been deactivated");
     }
@@ -89,7 +78,7 @@ export async function GET(request: NextRequest) {
     const totalUserCount = tenantData.users.length;
     const erpConnectionCount = tenantData.erpConnections.length;
     const connectedErpCount = tenantData.erpConnections.filter(
-      (c) => c.syncStatus === "CONNECTED"
+      (c) => c.syncStatus === "CONNECTED",
     ).length;
 
     // Log the profile access
@@ -101,7 +90,7 @@ export async function GET(request: NextRequest) {
         durationMs: Date.now() - requestStart,
         action: "me_success",
       },
-      "User profile retrieved successfully"
+      "User profile retrieved successfully",
     );
 
     return NextResponse.json({
@@ -112,6 +101,8 @@ export async function GET(request: NextRequest) {
         role: userRecord.role,
         isActive: userRecord.isActive,
         tenantId: userRecord.tenantId,
+        tenantSlug: tenantData.slug,
+        tenantPlan: tenantData.plan,
         createdAt: userRecord.createdAt,
         updatedAt: userRecord.updatedAt,
       },
@@ -145,7 +136,7 @@ export async function GET(request: NextRequest) {
           durationMs,
           action: "me_failed",
         },
-        error.message
+        error.message,
       );
       return NextResponse.json(error.toJSON(), { status: error.statusCode });
     }
@@ -153,11 +144,11 @@ export async function GET(request: NextRequest) {
     const err = toError(error);
     logger.error(
       { err, durationMs, action: "me_error" },
-      "Unexpected error retrieving user profile"
+      "Unexpected error retrieving user profile",
     );
     return NextResponse.json(
       { error: { code: "INTERNAL_ERROR", message: "Failed to retrieve profile" } },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

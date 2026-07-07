@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuthStore } from "@/stores/auth-store";
 import { apiClient } from "@/lib/api-client";
-import type { AuthUser } from "@/types/api";
+import type { AuthResponse } from "@/types/api";
 
 // ============================================================================
 // Login Page
@@ -40,7 +40,7 @@ export default function LoginPage() {
       setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
       if (authError) setError(null);
     },
-    [authError, setError]
+    [authError, setError],
   );
 
   const validate = useCallback((): boolean => {
@@ -72,16 +72,16 @@ export default function LoginPage() {
       setError(null);
 
       try {
-        const result = await apiClient.post<AuthUser, { email: string; password: string; tenantSlug?: string }>(
-          "/api/auth/login",
-          {
-            email: form.email,
-            password: form.password,
-            ...(form.tenantSlug.trim() ? { tenantSlug: form.tenantSlug.trim() } : {}),
-          }
-        );
+        const result = await apiClient.post<
+          AuthResponse,
+          { email: string; password: string; tenantSlug?: string }
+        >("/api/auth/login", {
+          email: form.email,
+          password: form.password,
+          ...(form.tenantSlug.trim() ? { tenantSlug: form.tenantSlug.trim() } : {}),
+        });
 
-        login(result);
+        login(result.user);
         router.push("/dashboard");
       } catch (err: unknown) {
         const message =
@@ -89,7 +89,7 @@ export default function LoginPage() {
         setError(message);
       }
     },
-    [validate, form, login, router, setLoading, setError]
+    [validate, form, login, router, setLoading, setError],
   );
 
   const inputBaseClass =
@@ -100,13 +100,14 @@ export default function LoginPage() {
   return (
     <div>
       <h1 className="mb-2 text-xl font-bold text-white">Sign in to Cascada</h1>
-      <p className="mb-6 text-sm text-slate-400">
-        Enter your credentials to access your dashboard
-      </p>
+      <p className="mb-6 text-sm text-slate-400">Enter your credentials to access your dashboard</p>
 
       {/* Error display */}
       {authError && (
-        <div className="mb-4 rounded-lg border border-red-800 bg-red-900/30 px-4 py-3 text-sm text-red-300" role="alert">
+        <div
+          className="mb-4 rounded-lg border border-red-800 bg-red-900/30 px-4 py-3 text-sm text-red-300"
+          role="alert"
+        >
           {authError}
         </div>
       )}
@@ -137,7 +138,10 @@ export default function LoginPage() {
 
         {/* Password */}
         <div>
-          <label htmlFor="login-password" className="mb-1.5 block text-sm font-medium text-slate-300">
+          <label
+            htmlFor="login-password"
+            className="mb-1.5 block text-sm font-medium text-slate-300"
+          >
             Password
           </label>
           <input
@@ -185,9 +189,25 @@ export default function LoginPage() {
         >
           {isLoading ? (
             <>
-              <svg className="mr-2 h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              <svg
+                className="mr-2 h-4 w-4 animate-spin"
+                viewBox="0 0 24 24"
+                fill="none"
+                aria-hidden="true"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                />
               </svg>
               Signing in…
             </>

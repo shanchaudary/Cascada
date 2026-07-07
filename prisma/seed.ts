@@ -3,8 +3,10 @@
 // Run with: npm run db:seed
 
 import { PrismaClient, Plan, UserRole } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
+const DEMO_PASSWORD = "cascada-demo-2026";
 
 async function main() {
   console.log("🌱 Seeding database...");
@@ -42,6 +44,8 @@ async function main() {
   // ============================================================================
   // Create admin users
   // ============================================================================
+  const demoPasswordHash = await bcrypt.hash(DEMO_PASSWORD, 12);
+
   const platformAdmin = await prisma.user.upsert({
     where: {
       tenantId_email: {
@@ -49,10 +53,11 @@ async function main() {
         email: "admin@cascada.io",
       },
     },
-    update: {},
+    update: { passwordHash: demoPasswordHash },
     create: {
       email: "admin@cascada.io",
       name: "Platform Admin",
+      passwordHash: demoPasswordHash,
       role: UserRole.SUPER_ADMIN,
       tenantId: platformTenant.id,
     },
@@ -67,10 +72,11 @@ async function main() {
         email: "admin@demofoods.com",
       },
     },
-    update: {},
+    update: { passwordHash: demoPasswordHash },
     create: {
       email: "admin@demofoods.com",
       name: "Demo Admin",
+      passwordHash: demoPasswordHash,
       role: UserRole.TENANT_ADMIN,
       tenantId: demoTenant.id,
     },
@@ -258,7 +264,13 @@ async function main() {
       batchSizeUnit: "kg",
       items: {
         create: [
-          { ingredientId: potassiumBromate.id, quantity: 0.03, unit: "kg", percentage: 0.015, sortOrder: 1 },
+          {
+            ingredientId: potassiumBromate.id,
+            quantity: 0.03,
+            unit: "kg",
+            percentage: 0.015,
+            sortOrder: 1,
+          },
         ],
       },
     },
@@ -424,17 +436,20 @@ async function main() {
       jurisdiction: "US-CA",
       name: "California AB 418 — Food Safety: Prohibited Additives",
       sourceId: "CA-2025-AB418",
-      sourceUrl: "https://leginfo.legislature.ca.gov/faces/billTextClient.xhtml?bill_id=202520260AB418",
+      sourceUrl:
+        "https://leginfo.legislature.ca.gov/faces/billTextClient.xhtml?bill_id=202520260AB418",
       status: "ACTIVE",
       introducedDate: new Date("2025-02-10"),
       enactedDate: new Date("2025-10-01"),
       effectiveDate: new Date("2027-01-01"),
-      fullText: "An act to add Section 110823 to the Health and Safety Code, relating to food safety. This bill would prohibit a person from manufacturing, selling, delivering, distributing, holding, or offering for sale a food product that contains certain specified substances, including Red 40, Yellow 5, Yellow 6, Blue 1, Blue 2, and Green 3, beginning January 1, 2027.",
+      fullText:
+        "An act to add Section 110823 to the Health and Safety Code, relating to food safety. This bill would prohibit a person from manufacturing, selling, delivering, distributing, holding, or offering for sale a food product that contains certain specified substances, including Red 40, Yellow 5, Yellow 6, Blue 1, Blue 2, and Green 3, beginning January 1, 2027.",
       rules: {
         create: {
           jurisdiction: "US-CA",
           ruleType: "BAN",
-          description: "Bans the sale of food products containing Red 40, Yellow 5, Yellow 6, Blue 1, Blue 2, and Green 3 artificial food dyes in California, effective January 1, 2027.",
+          description:
+            "Bans the sale of food products containing Red 40, Yellow 5, Yellow 6, Blue 1, Blue 2, and Green 3 artificial food dyes in California, effective January 1, 2027.",
           effectiveDate: new Date("2027-01-01"),
           complianceDate: new Date("2027-01-01"),
           gracePeriodDays: 0,
@@ -442,10 +457,46 @@ async function main() {
           penaltyAmount: 5000,
           substances: {
             create: [
-              { substanceName: "Red 40", substanceType: "specific_chemical", casNumber: "25956-17-6", eenumber: "E129", isMatched: true, matchConfidence: 0.99, matchMethod: "cas_number", ingredientId: red40.id },
-              { substanceName: "Yellow 5", substanceType: "specific_chemical", casNumber: "1934-21-0", eenumber: "E102", isMatched: true, matchConfidence: 0.99, matchMethod: "cas_number", ingredientId: yellow5.id },
-              { substanceName: "Yellow 6", substanceType: "specific_chemical", casNumber: "2783-94-0", eenumber: "E110", isMatched: true, matchConfidence: 0.99, matchMethod: "cas_number", ingredientId: yellow6.id },
-              { substanceName: "Blue 1", substanceType: "specific_chemical", casNumber: "3844-45-9", eenumber: "E133", isMatched: true, matchConfidence: 0.99, matchMethod: "cas_number", ingredientId: blue1.id },
+              {
+                substanceName: "Red 40",
+                substanceType: "specific_chemical",
+                casNumber: "25956-17-6",
+                eenumber: "E129",
+                isMatched: true,
+                matchConfidence: 0.99,
+                matchMethod: "cas_number",
+                ingredientId: red40.id,
+              },
+              {
+                substanceName: "Yellow 5",
+                substanceType: "specific_chemical",
+                casNumber: "1934-21-0",
+                eenumber: "E102",
+                isMatched: true,
+                matchConfidence: 0.99,
+                matchMethod: "cas_number",
+                ingredientId: yellow5.id,
+              },
+              {
+                substanceName: "Yellow 6",
+                substanceType: "specific_chemical",
+                casNumber: "2783-94-0",
+                eenumber: "E110",
+                isMatched: true,
+                matchConfidence: 0.99,
+                matchMethod: "cas_number",
+                ingredientId: yellow6.id,
+              },
+              {
+                substanceName: "Blue 1",
+                substanceType: "specific_chemical",
+                casNumber: "3844-45-9",
+                eenumber: "E133",
+                isMatched: true,
+                matchConfidence: 0.99,
+                matchMethod: "cas_number",
+                ingredientId: blue1.id,
+              },
             ],
           },
         },
@@ -465,12 +516,14 @@ async function main() {
       introducedDate: new Date("2025-01-15"),
       enactedDate: new Date("2025-06-20"),
       effectiveDate: new Date("2026-09-01"),
-      fullText: "Relating to the safety of food additives. This act prohibits the sale of food products containing certain artificial dyes and chemicals including Red 40, Yellow 5, Yellow 6, Blue 1, Blue 2, Green 3, TBHQ, BHA, BHT, and potassium bromate.",
+      fullText:
+        "Relating to the safety of food additives. This act prohibits the sale of food products containing certain artificial dyes and chemicals including Red 40, Yellow 5, Yellow 6, Blue 1, Blue 2, Green 3, TBHQ, BHA, BHT, and potassium bromate.",
       rules: {
         create: {
           jurisdiction: "US-TX",
           ruleType: "BAN",
-          description: "Bans food products containing specified artificial dyes, preservatives, and potassium bromate in Texas, effective September 1, 2026.",
+          description:
+            "Bans food products containing specified artificial dyes, preservatives, and potassium bromate in Texas, effective September 1, 2026.",
           effectiveDate: new Date("2026-09-01"),
           complianceDate: new Date("2026-09-01"),
           gracePeriodDays: 90,
@@ -478,14 +531,86 @@ async function main() {
           penaltyAmount: 25000,
           substances: {
             create: [
-              { substanceName: "Red 40", substanceType: "specific_chemical", casNumber: "25956-17-6", eenumber: "E129", isMatched: true, matchConfidence: 0.99, matchMethod: "cas_number", ingredientId: red40.id },
-              { substanceName: "Yellow 5", substanceType: "specific_chemical", casNumber: "1934-21-0", eenumber: "E102", isMatched: true, matchConfidence: 0.99, matchMethod: "cas_number", ingredientId: yellow5.id },
-              { substanceName: "Yellow 6", substanceType: "specific_chemical", casNumber: "2783-94-0", eenumber: "E110", isMatched: true, matchConfidence: 0.99, matchMethod: "cas_number", ingredientId: yellow6.id },
-              { substanceName: "Blue 1", substanceType: "specific_chemical", casNumber: "3844-45-9", eenumber: "E133", isMatched: true, matchConfidence: 0.99, matchMethod: "cas_number", ingredientId: blue1.id },
-              { substanceName: "TBHQ", substanceType: "specific_chemical", casNumber: "1948-33-0", eenumber: "E319", isMatched: true, matchConfidence: 0.99, matchMethod: "cas_number", ingredientId: tbhq.id },
-              { substanceName: "BHA", substanceType: "specific_chemical", casNumber: "25013-16-5", eenumber: "E320", isMatched: true, matchConfidence: 0.99, matchMethod: "cas_number", ingredientId: bha.id },
-              { substanceName: "BHT", substanceType: "specific_chemical", casNumber: "128-37-0", eenumber: "E321", isMatched: true, matchConfidence: 0.99, matchMethod: "cas_number", ingredientId: bht.id },
-              { substanceName: "Potassium Bromate", substanceType: "specific_chemical", casNumber: "7758-01-2", eenumber: "E924", isMatched: true, matchConfidence: 0.99, matchMethod: "cas_number", ingredientId: potassiumBromate.id },
+              {
+                substanceName: "Red 40",
+                substanceType: "specific_chemical",
+                casNumber: "25956-17-6",
+                eenumber: "E129",
+                isMatched: true,
+                matchConfidence: 0.99,
+                matchMethod: "cas_number",
+                ingredientId: red40.id,
+              },
+              {
+                substanceName: "Yellow 5",
+                substanceType: "specific_chemical",
+                casNumber: "1934-21-0",
+                eenumber: "E102",
+                isMatched: true,
+                matchConfidence: 0.99,
+                matchMethod: "cas_number",
+                ingredientId: yellow5.id,
+              },
+              {
+                substanceName: "Yellow 6",
+                substanceType: "specific_chemical",
+                casNumber: "2783-94-0",
+                eenumber: "E110",
+                isMatched: true,
+                matchConfidence: 0.99,
+                matchMethod: "cas_number",
+                ingredientId: yellow6.id,
+              },
+              {
+                substanceName: "Blue 1",
+                substanceType: "specific_chemical",
+                casNumber: "3844-45-9",
+                eenumber: "E133",
+                isMatched: true,
+                matchConfidence: 0.99,
+                matchMethod: "cas_number",
+                ingredientId: blue1.id,
+              },
+              {
+                substanceName: "TBHQ",
+                substanceType: "specific_chemical",
+                casNumber: "1948-33-0",
+                eenumber: "E319",
+                isMatched: true,
+                matchConfidence: 0.99,
+                matchMethod: "cas_number",
+                ingredientId: tbhq.id,
+              },
+              {
+                substanceName: "BHA",
+                substanceType: "specific_chemical",
+                casNumber: "25013-16-5",
+                eenumber: "E320",
+                isMatched: true,
+                matchConfidence: 0.99,
+                matchMethod: "cas_number",
+                ingredientId: bha.id,
+              },
+              {
+                substanceName: "BHT",
+                substanceType: "specific_chemical",
+                casNumber: "128-37-0",
+                eenumber: "E321",
+                isMatched: true,
+                matchConfidence: 0.99,
+                matchMethod: "cas_number",
+                ingredientId: bht.id,
+              },
+              {
+                substanceName: "Potassium Bromate",
+                substanceType: "specific_chemical",
+                casNumber: "7758-01-2",
+                eenumber: "E924",
+                isMatched: true,
+                matchConfidence: 0.99,
+                matchMethod: "cas_number",
+                ingredientId: potassiumBromate.id,
+              },
             ],
           },
         },
@@ -498,7 +623,11 @@ async function main() {
   console.log("\n🎉 Seeding complete!");
   console.log(`   Platform tenant: ${platformTenant.slug}`);
   console.log(`   Demo tenant: ${demoTenant.slug}`);
-  console.log(`   Sample data: 8 ingredients, 3 formulations, 3 products, 3 customers, 2 suppliers, 2 regulations`);
+  console.log(`   Demo login: admin@demofoods.com / ${DEMO_PASSWORD}`);
+  console.log(`   Platform login: admin@cascada.io / ${DEMO_PASSWORD}`);
+  console.log(
+    `   Sample data: 8 ingredients, 3 formulations, 3 products, 3 customers, 2 suppliers, 2 regulations`,
+  );
 }
 
 main()

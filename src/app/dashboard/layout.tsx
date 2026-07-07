@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 import type { Plan, UserRole } from "@prisma/client";
 import { Sidebar, Header, NotificationToast } from "@/components/dashboard";
+import { apiClient } from "@/lib/api-client";
 import { useAuthStore } from "@/stores/auth-store";
 import { useUIStore } from "@/stores/ui-store";
 
@@ -51,9 +52,15 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   }, [isAuthenticated, router]);
 
   // Handle logout
-  const handleLogout = () => {
-    logout();
-    router.push("/login");
+  const handleLogout = async () => {
+    try {
+      await apiClient.post<{ message: string }>("/api/auth/logout");
+    } catch {
+      // Local logout still proceeds if the server session is already absent.
+    } finally {
+      logout();
+      router.push("/login");
+    }
   };
 
   // Don't render dashboard chrome until authenticated

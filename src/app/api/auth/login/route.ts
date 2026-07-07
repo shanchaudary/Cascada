@@ -8,12 +8,7 @@ import { prisma } from "@/lib/db";
 import logger, { createTenantLogger } from "@/lib/logger";
 import { signIn } from "@/lib/auth";
 import { loginSchema } from "@/lib/validation";
-import {
-  ValidationError,
-  InvalidCredentialsError,
-  CascadaError,
-  toError,
-} from "@/lib/errors";
+import { ValidationError, InvalidCredentialsError, CascadaError, toError } from "@/lib/errors";
 import { ZodError } from "zod";
 
 /**
@@ -55,7 +50,7 @@ export async function POST(request: NextRequest) {
     if (users.length === 0) {
       logger.warn(
         { email, action: "login_user_not_found" },
-        "Login attempt for non-existent or inactive user"
+        "Login attempt for non-existent or inactive user",
       );
       // Deliberately return a generic invalid credentials error to prevent
       // email enumeration attacks
@@ -63,14 +58,12 @@ export async function POST(request: NextRequest) {
     }
 
     // If a tenantSlug is provided for disambiguation, filter to that tenant
-    const matchingUser = tenantSlug
-      ? users.find((u) => u.tenant.slug === tenantSlug)
-      : users[0];
+    const matchingUser = tenantSlug ? users.find((u) => u.tenant.slug === tenantSlug) : users[0];
 
     if (!matchingUser) {
       logger.warn(
         { email, tenantSlug, action: "login_tenant_mismatch" },
-        "Login attempt with non-matching tenant slug"
+        "Login attempt with non-matching tenant slug",
       );
       throw new InvalidCredentialsError();
     }
@@ -79,13 +72,14 @@ export async function POST(request: NextRequest) {
     const authResult = await signIn("credentials", {
       email,
       password,
+      ...(tenantSlug ? { tenantSlug } : {}),
       redirect: false,
     });
 
     if (!authResult) {
       logger.warn(
         { email, action: "login_invalid_credentials" },
-        "Login failed — invalid credentials via NextAuth"
+        "Login failed — invalid credentials via NextAuth",
       );
       throw new InvalidCredentialsError();
     }
@@ -101,7 +95,7 @@ export async function POST(request: NextRequest) {
         durationMs: Date.now() - requestStart,
         action: "login_success",
       },
-      "User logged in successfully"
+      "User logged in successfully",
     );
 
     // Create an audit log entry for the login event
@@ -124,6 +118,8 @@ export async function POST(request: NextRequest) {
         name: matchingUser.name,
         role: matchingUser.role,
         tenantId: matchingUser.tenantId,
+        tenantSlug: matchingUser.tenant.slug,
+        tenantPlan: matchingUser.tenant.plan,
       },
       tenant: {
         id: matchingUser.tenant.id,
@@ -145,7 +141,7 @@ export async function POST(request: NextRequest) {
           durationMs,
           action: "login_failed",
         },
-        error.message
+        error.message,
       );
       return NextResponse.json(error.toJSON(), { status: error.statusCode });
     }
@@ -154,7 +150,7 @@ export async function POST(request: NextRequest) {
       const validationError = formatZodError(error);
       logger.warn(
         { err: validationError, durationMs, action: "login_validation_failed" },
-        "Login validation failed"
+        "Login validation failed",
       );
       return NextResponse.json(validationError.toJSON(), {
         status: validationError.statusCode,
@@ -162,13 +158,10 @@ export async function POST(request: NextRequest) {
     }
 
     const err = toError(error);
-    logger.error(
-      { err, durationMs, action: "login_error" },
-      "Unexpected error during login"
-    );
+    logger.error({ err, durationMs, action: "login_error" }, "Unexpected error during login");
     return NextResponse.json(
       { error: { code: "INTERNAL_ERROR", message: "Login failed" } },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -8,12 +8,7 @@ import { prisma } from "@/lib/db";
 import logger, { createTenantLogger } from "@/lib/logger";
 import { hashPassword } from "@/lib/auth";
 import { registerSchema } from "@/lib/validation";
-import {
-  ValidationError,
-  ConflictError,
-  CascadaError,
-  toError,
-} from "@/lib/errors";
+import { ValidationError, ConflictError, CascadaError, toError } from "@/lib/errors";
 import { signIn } from "@/lib/auth";
 import { ZodError } from "zod";
 
@@ -46,7 +41,7 @@ export async function POST(request: NextRequest) {
 
     logger.info(
       { email, companySlug, action: "register_attempt" },
-      "Registration attempt received"
+      "Registration attempt received",
     );
 
     // Check if a tenant with this slug already exists
@@ -55,10 +50,9 @@ export async function POST(request: NextRequest) {
     });
 
     if (existingTenant) {
-      throw new ConflictError(
-        `A company with slug "${companySlug}" already exists`,
-        { companySlug }
-      );
+      throw new ConflictError(`A company with slug "${companySlug}" already exists`, {
+        companySlug,
+      });
     }
 
     // Check if the email is already registered under any tenant
@@ -67,10 +61,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (existingUser) {
-      throw new ConflictError(
-        "A user with this email address already exists",
-        { email }
-      );
+      throw new ConflictError("A user with this email address already exists", { email });
     }
 
     // Hash the password with bcrypt
@@ -93,6 +84,7 @@ export async function POST(request: NextRequest) {
           tenantId: tenant.id,
           email,
           name,
+          passwordHash,
           role: "TENANT_ADMIN",
           isActive: true,
         },
@@ -132,13 +124,14 @@ export async function POST(request: NextRequest) {
         tenantSlug: tenant.slug,
         durationMs: Date.now() - requestStart,
       },
-      "User registered successfully"
+      "User registered successfully",
     );
 
     // Sign in the user via NextAuth to establish a session
     const session = await signIn("credentials", {
       email,
       password,
+      tenantSlug: tenant.slug,
       redirect: false,
     });
 
@@ -150,6 +143,8 @@ export async function POST(request: NextRequest) {
           name: user.name,
           role: user.role,
           tenantId: user.tenantId,
+          tenantSlug: tenant.slug,
+          tenantPlan: tenant.plan,
         },
         tenant: {
           id: tenant.id,
@@ -159,7 +154,7 @@ export async function POST(request: NextRequest) {
         },
         session: session ?? null,
       },
-      { status: 201 }
+      { status: 201 },
     );
   } catch (error: unknown) {
     const durationMs = Date.now() - requestStart;
@@ -173,7 +168,7 @@ export async function POST(request: NextRequest) {
           durationMs,
           action: "register_failed",
         },
-        error.message
+        error.message,
       );
       return NextResponse.json(error.toJSON(), { status: error.statusCode });
     }
@@ -182,7 +177,7 @@ export async function POST(request: NextRequest) {
       const validationError = formatZodError(error);
       logger.warn(
         { err: validationError, durationMs, action: "register_validation_failed" },
-        "Registration validation failed"
+        "Registration validation failed",
       );
       return NextResponse.json(validationError.toJSON(), {
         status: validationError.statusCode,
@@ -192,11 +187,11 @@ export async function POST(request: NextRequest) {
     const err = toError(error);
     logger.error(
       { err, durationMs, action: "register_error" },
-      "Unexpected error during registration"
+      "Unexpected error during registration",
     );
     return NextResponse.json(
       { error: { code: "INTERNAL_ERROR", message: "Registration failed" } },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -18,32 +18,32 @@
 
 ## 2. Tech Stack (Frozen)
 
-| Layer | Technology | Version | Rationale |
-|-------|-----------|---------|-----------|
-| Runtime | Node.js | 20 LTS | LTS stability, Temporal SDK support |
-| Framework | Next.js | 16 (App Router) | API routes + frontend in one deploy |
-| Language | TypeScript | 5.x strict mode | No `any`, no escape hatches |
-| ORM | Prisma | 5.x | Type-safe DB access, migrations |
-| Database | PostgreSQL | 16 | Primary data store |
-| Graph Engine | Apache AGE | PG extension | Graph queries inside PostgreSQL |
-| Cache/Queue | Redis | 7.x | Job queues, session cache, rate limiting |
-| Workflow | Temporal.io | 1.24+ | Durable workflow execution |
-| LLM - Primary | OpenAI | GPT-4o / GPT-4o-mini | Structured output, tool calling |
-| LLM - Fallback | Anthropic | Claude 3.5 Sonnet | Backup when OpenAI fails |
-| LLM SDK | Vercel AI SDK | 4.x | Unified interface for multiple providers |
-| Frontend | React 19 + Tailwind 4 + shadcn/ui | Latest | Component library |
-| Charts | Recharts | 2.x | Dashboard visualizations |
-| Auth | NextAuth.js | 5.x (Auth.js) | JWT + session management |
-| Email | Resend | API | Transactional email |
-| PDF | @react-pdf/renderer | 4.x | Diagnostic report generation |
-| Logging | Pino | 9.x | Structured JSON logging |
-| Validation | Zod | 3.x | Runtime type validation |
-| Testing | Vitest + Playwright | Latest | Unit + e2e |
-| Containerization | Docker + Docker Compose | Latest | Local dev and deployment |
-| Orchestration | Kubernetes | 1.29+ | Production deployment |
-| IaC | Terraform | 1.7+ | Cloud infrastructure |
-| CI/CD | GitHub Actions | N/A | Automated pipelines |
-| Monitoring | Prometheus + Grafana | Latest | Metrics and dashboards |
+| Layer            | Technology                        | Version                                       | Rationale                                |
+| ---------------- | --------------------------------- | --------------------------------------------- | ---------------------------------------- |
+| Runtime          | Node.js                           | 20 LTS                                        | LTS stability, Temporal SDK support      |
+| Framework        | Next.js                           | 15.x (App Router; lockfile currently 15.5.20) | API routes + frontend in one deploy      |
+| Language         | TypeScript                        | 5.x strict mode                               | No `any`, no escape hatches              |
+| ORM              | Prisma                            | 6.x (lockfile currently 6.19.3)               | Type-safe DB access, migrations          |
+| Database         | PostgreSQL                        | 16                                            | Primary data store                       |
+| Graph Engine     | Apache AGE                        | PG extension                                  | Graph queries inside PostgreSQL          |
+| Cache/Queue      | Redis                             | 7.x                                           | Job queues, session cache, rate limiting |
+| Workflow         | Temporal.io                       | 1.24+                                         | Durable workflow execution               |
+| LLM - Primary    | OpenAI                            | GPT-4o / GPT-4o-mini                          | Structured output, tool calling          |
+| LLM - Fallback   | Anthropic                         | Claude 3.5 Sonnet                             | Backup when OpenAI fails                 |
+| LLM SDK          | Vercel AI SDK                     | 4.x                                           | Unified interface for multiple providers |
+| Frontend         | React 19 + Tailwind 4 + shadcn/ui | Latest                                        | Component library                        |
+| Charts           | Recharts                          | 2.x                                           | Dashboard visualizations                 |
+| Auth             | NextAuth.js                       | 5.x (Auth.js)                                 | JWT + session management                 |
+| Email            | Resend                            | API                                           | Transactional email                      |
+| PDF              | @react-pdf/renderer               | 4.x                                           | Diagnostic report generation             |
+| Logging          | Pino                              | 9.x                                           | Structured JSON logging                  |
+| Validation       | Zod                               | 3.x                                           | Runtime type validation                  |
+| Testing          | Vitest                            | Latest                                        | Unit/regression tests; Playwright is not currently configured |
+| Containerization | Docker + Docker Compose           | Latest                                        | Local dev and deployment                 |
+| Orchestration    | Kubernetes                        | 1.29+                                         | Production deployment                    |
+| IaC              | Terraform                         | 1.7+                                          | Cloud infrastructure                     |
+| CI/CD            | GitHub Actions                    | N/A                                           | Automated pipelines                      |
+| Monitoring       | Prometheus + Grafana              | Latest                                        | Metrics and dashboards                   |
 
 ---
 
@@ -89,6 +89,7 @@ model User {
   tenantId      String
   email         String
   name          String
+  passwordHash  String?
   role          UserRole  @default(VIEWER)
   isActive      Boolean   @default(true)
   createdAt     DateTime  @default(now())
@@ -803,6 +804,7 @@ model PipelineRun {
 ## 4. API Routes (Frozen)
 
 ### 4.1 Auth
+
 ```
 POST   /api/auth/register
 POST   /api/auth/login
@@ -812,6 +814,7 @@ GET    /api/auth/me
 ```
 
 ### 4.2 Tenants
+
 ```
 GET    /api/tenants/current
 PATCH  /api/tenants/current
@@ -822,6 +825,7 @@ DELETE /api/tenants/current/users/:id
 ```
 
 ### 4.3 ERP Connections
+
 ```
 GET    /api/erp-connections
 POST   /api/erp-connections
@@ -835,6 +839,7 @@ GET    /api/erp-connections/:id/status
 ```
 
 ### 4.4 Ingredients
+
 ```
 GET    /api/ingredients
 POST   /api/ingredients
@@ -846,6 +851,7 @@ POST   /api/ingredients/match-rule-substances
 ```
 
 ### 4.5 Formulations
+
 ```
 GET    /api/formulations
 POST   /api/formulations
@@ -856,6 +862,7 @@ POST   /api/formulations/:id/items
 ```
 
 ### 4.6 Products
+
 ```
 GET    /api/products
 POST   /api/products
@@ -865,6 +872,7 @@ GET    /api/products/:id/exposure
 ```
 
 ### 4.7 Regulatory Sources & Rules
+
 ```
 GET    /api/regulatory/sources
 GET    /api/regulatory/sources/:id
@@ -877,6 +885,7 @@ GET    /api/regulatory/search
 ```
 
 ### 4.8 Cascade Engine
+
 ```
 GET    /api/cascade/graph
 POST   /api/cascade/graph/rebuild
@@ -890,6 +899,7 @@ POST   /api/cascade/exposure/diagnostic
 ```
 
 ### 4.9 Decision Packages
+
 ```
 GET    /api/decisions
 GET    /api/decisions/:id
@@ -898,6 +908,7 @@ GET    /api/decisions/:id/report
 ```
 
 ### 4.10 Executive Query Agent
+
 ```
 POST   /api/agent/query
 GET    /api/agent/conversations
@@ -906,6 +917,7 @@ POST   /api/agent/conversations/:id/message
 ```
 
 ### 4.11 Workflows
+
 ```
 GET    /api/workflows
 POST   /api/workflows
@@ -915,7 +927,10 @@ POST   /api/workflows/:id/reject
 GET    /api/workflows/:id/steps
 ```
 
-### 4.12 Diagnostics (Paid Wedge)
+### 4.12 Diagnostics (Paid Wedge - Target Routes)
+
+The committed implementation currently exposes `POST /api/cascade/exposure/diagnostic` and the `/dashboard/diagnostic` UI. The dedicated `/api/diagnostics/*` lifecycle routes below remain target contract routes, not verified implemented routes.
+
 ```
 POST   /api/diagnostics
 GET    /api/diagnostics
@@ -926,6 +941,7 @@ POST   /api/diagnostics/:id/generate
 ```
 
 ### 4.13 Dashboard
+
 ```
 GET    /api/dashboard/summary
 GET    /api/dashboard/exposure-by-state
@@ -957,7 +973,7 @@ Cascada/
 │   │   ├── (auth)/              # Auth pages
 │   │   │   ├── login/page.tsx
 │   │   │   └── register/page.tsx
-│   │   ├── (dashboard)/         # Main dashboard
+│   │   ├── dashboard/         # Main dashboard
 │   │   │   ├── layout.tsx
 │   │   │   ├── page.tsx
 │   │   │   ├── exposure/page.tsx
@@ -1102,8 +1118,7 @@ Cascada/
 │       └── validation.ts
 ├── tests/
 │   ├── unit/
-│   ├── integration/
-│   └── e2e/
+│   └── integration/
 ├── k8s/                         # Kubernetes manifests
 │   ├── namespace.yaml
 │   ├── app-deployment.yaml
@@ -1139,7 +1154,6 @@ Cascada/
 ├── tsconfig.json
 ├── next.config.ts
 ├── vitest.config.ts
-├── playwright.config.ts
 ├── package.json
 └── PROGRESS.md                  # Build progress tracker
 ```
@@ -1159,6 +1173,8 @@ REDIS_URL=redis://localhost:6379
 # Auth
 NEXTAUTH_SECRET=<generate-random-32-chars>
 NEXTAUTH_URL=http://localhost:3000
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+CASCADA_DEV_AUTH=true
 
 # LLM
 OPENAI_API_KEY=sk-...
@@ -1224,17 +1240,17 @@ ENCRYPTION_KEY=<generate-random-32-chars>
 
 ## 7. Key Architectural Decisions (Frozen)
 
-| Decision | Choice | Rationale | Alternatives Rejected |
-|----------|--------|-----------|----------------------|
-| Graph DB | Apache AGE inside PostgreSQL | Avoids operating a separate Neo4j cluster; AGE provides Cypher queries on PG | Neo4j (too much infra for MVP), JanusGraph (overkill) |
-| Multi-tenancy | Shared DB, tenant-scoped queries with RLS | Simplest operational model for startup phase | Separate DB per tenant (too expensive), separate schema per tenant (complex migrations) |
-| LLM Integration | Vercel AI SDK with OpenAI primary, Anthropic fallback | Unified interface, built-in streaming, edge-compatible | Direct API calls (more boilerplate), LangChain (too abstracted, hard to debug) |
-| Workflow Engine | Temporal.io | Durable execution, built-in retry, saga patterns, observability | BullMQ (not durable), Inngest (less mature), custom (reinventing the wheel) |
-| Frontend Framework | Next.js 16 App Router | API routes + frontend in one deploy, server components | Separate React + Express (more infra), Remix (smaller ecosystem) |
-| ERP Integration | Abstract base class + per-ERP connector | Common interface, each ERP implements the same contract | Integration platform (Celigo/Workato — adds $2K-5K/mo cost per customer) |
-| Structured LLM Output | Zod schema + Vercel AI SDK `generateObject()` | Forces LLM to produce valid JSON matching our types | Free-form chat + manual parsing (fragile, hallucination-prone) |
-| Rule Versioning | Linked list of Rule versions | Full audit trail, can compare versions, supports repeal/supersede | Overwrite-in-place (no history), event sourcing (overkill) |
-| Payment | Stripe | Industry standard, supports one-time + subscription | PayPal (worse DX), custom (not worth building) |
+| Decision              | Choice                                                | Rationale                                                                    | Alternatives Rejected                                                                   |
+| --------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Graph DB              | Apache AGE inside PostgreSQL                          | Avoids operating a separate Neo4j cluster; AGE provides Cypher queries on PG | Neo4j (too much infra for MVP), JanusGraph (overkill)                                   |
+| Multi-tenancy         | Shared DB, tenant-scoped queries with RLS             | Simplest operational model for startup phase                                 | Separate DB per tenant (too expensive), separate schema per tenant (complex migrations) |
+| LLM Integration       | Vercel AI SDK with OpenAI primary, Anthropic fallback | Unified interface, built-in streaming, edge-compatible                       | Direct API calls (more boilerplate), LangChain (too abstracted, hard to debug)          |
+| Workflow Engine       | Temporal.io                                           | Durable execution, built-in retry, saga patterns, observability              | BullMQ (not durable), Inngest (less mature), custom (reinventing the wheel)             |
+| Frontend Framework    | Next.js 15 App Router                                 | API routes + frontend in one deploy, server components                       | Separate React + Express (more infra), Remix (smaller ecosystem)                        |
+| ERP Integration       | Abstract base class + per-ERP connector               | Common interface, each ERP implements the same contract                      | Integration platform (Celigo/Workato — adds $2K-5K/mo cost per customer)                |
+| Structured LLM Output | Zod schema + Vercel AI SDK `generateObject()`         | Forces LLM to produce valid JSON matching our types                          | Free-form chat + manual parsing (fragile, hallucination-prone)                          |
+| Rule Versioning       | Linked list of Rule versions                          | Full audit trail, can compare versions, supports repeal/supersede            | Overwrite-in-place (no history), event sourcing (overkill)                              |
+| Payment               | Stripe                                                | Industry standard, supports one-time + subscription                          | PayPal (worse DX), custom (not worth building)                                          |
 
 ---
 
@@ -1262,21 +1278,21 @@ These are non-negotiable. Every stage must pass these checks:
 
 ## 9. Stage Gate Definitions (Frozen)
 
-| Stage | Name | Must Deliver | Must Pass |
-|-------|------|-------------|-----------|
-| 0 | Contract | This document | User approval |
-| 1 | Foundation | Schema, Docker, scaffold | `prisma validate` passes |
-| 2 | Data Pipelines | 4 pipeline clients | Real API data flows |
-| 3 | Rule Engine | LLM parser + SME validation | Real bill excerpt parsed |
-| 4 | Cascade Engine | Graph + traversal + scoring | Test graph with 50+ nodes |
-| 5 | ERP Connectors | 5 connectors with real API patterns | Connector code review |
-| 6 | AI Agents | Query + reformulation + workflow agents | Agent trace is real |
-| 7 | Workflows | Temporal workflows + activities | Workflow trace is real |
-| 8 | Dashboard + API | Full frontend + all API routes | Dev server runs |
-| 9 | Diagnostic | 50-state exposure scan + PDF | PDF generates |
-| 10 | Infrastructure | K8s + Terraform + CI/CD | Manifests reviewed |
-| 11 | Tests + Docs | Full test suite + documentation | Tests pass |
+| Stage | Name            | Must Deliver                            | Must Pass                 |
+| ----- | --------------- | --------------------------------------- | ------------------------- |
+| 0     | Contract        | This document                           | User approval             |
+| 1     | Foundation      | Schema, Docker, scaffold                | `prisma validate` passes  |
+| 2     | Data Pipelines  | 4 pipeline clients                      | Real API data flows       |
+| 3     | Rule Engine     | LLM parser + SME validation             | Real bill excerpt parsed  |
+| 4     | Cascade Engine  | Graph + traversal + scoring             | Test graph with 50+ nodes |
+| 5     | ERP Connectors  | 5 connectors with real API patterns     | Connector code review     |
+| 6     | AI Agents       | Query + reformulation + workflow agents | Agent trace is real       |
+| 7     | Workflows       | Temporal workflows + activities         | Workflow trace is real    |
+| 8     | Dashboard + API | Full frontend + all API routes          | Dev server runs           |
+| 9     | Diagnostic      | 50-state exposure scan + PDF            | PDF generates             |
+| 10    | Infrastructure  | K8s + Terraform + CI/CD                 | Manifests reviewed        |
+| 11    | Tests + Docs    | Full test suite + documentation         | Tests pass                |
 
 ---
 
-*This contract is frozen. Changes require explicit user approval.*
+_This contract is frozen. Changes require explicit user approval._

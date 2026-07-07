@@ -22,6 +22,19 @@ export interface AuthSession {
   expires: string;
 }
 
+export interface AuthTenant {
+  id: string;
+  name: string;
+  slug: string;
+  plan: Plan;
+}
+
+export interface AuthResponse {
+  user: AuthUser;
+  tenant: AuthTenant;
+  session?: unknown;
+}
+
 // ============================================================================
 // API Response wrapper
 // ============================================================================
@@ -134,7 +147,13 @@ export interface CascadeTriggerSummary {
 
 export interface CascadeExposureSummary {
   byState: Record<string, { skuCount: number; revenueAtRisk: number }>;
-  byProduct: Array<{ productId: string; productName: string; sku: string; revenueAtRisk: number; triggers: number }>;
+  byProduct: Array<{
+    productId: string;
+    productName: string;
+    sku: string;
+    revenueAtRisk: number;
+    triggers: number;
+  }>;
   bySeverity: Record<Severity, number>;
   totalSkusAffected: number;
   totalRevenueAtRisk: number;

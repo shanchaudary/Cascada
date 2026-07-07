@@ -7,7 +7,7 @@ services:
   # PostgreSQL 16 with Apache AGE graph extension
   # ============================================================================
   postgres:
-    image: apache/age:PG16-v1.5.0
+    image: apache/age:release_PG16_1.5.0
     container_name: cascada-postgres
     restart: unless-stopped
     ports:
@@ -71,14 +71,14 @@ services:
       - cascada-network
 
   temporal:
-    image: temporalio/auto-setup:1.26.1
+    image: temporalio/auto-setup:1.29
     container_name: cascada-temporal
     restart: unless-stopped
     ports:
       - "7233:7233"
       - "8233:8233"
     environment:
-      - DB=postgresql
+      - DB=postgres12
       - DB_PORT=5432
       - POSTGRES_USER=temporal
       - POSTGRES_PWD=${TEMPORAL_POSTGRES_PASSWORD:-temporal_dev_2024}
@@ -99,7 +99,7 @@ services:
       - cascada-network
 
   temporal-admin-tools:
-    image: temporalio/admin-tools:1.26.1
+    image: temporalio/admin-tools:1.29
     container_name: cascada-temporal-admin
     restart: unless-stopped
     environment:
@@ -117,8 +117,8 @@ services:
     container_name: cascada-mailpit
     restart: unless-stopped
     ports:
-      - "1025:1025"  # SMTP
-      - "8025:8025"  # Web UI
+      - "1025:1025" # SMTP
+      - "8025:8025" # Web UI
     networks:
       - cascada-network
 

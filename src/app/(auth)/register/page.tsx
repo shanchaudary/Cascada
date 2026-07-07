@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuthStore } from "@/stores/auth-store";
 import { apiClient } from "@/lib/api-client";
-import type { AuthUser } from "@/types/api";
+import type { AuthResponse } from "@/types/api";
 
 // ============================================================================
 // Register Page — Zod validation on client side
@@ -44,8 +44,8 @@ function validateForm(form: RegisterFormState): FieldError {
 
   if (!form.password) {
     errors.password = "Password is required";
-  } else if (form.password.length < 8) {
-    errors.password = "Password must be at least 8 characters";
+  } else if (form.password.length < 12) {
+    errors.password = "Password must be at least 12 characters";
   } else if (!/[A-Z]/.test(form.password)) {
     errors.password = "Password must contain at least one uppercase letter";
   } else if (!/[a-z]/.test(form.password)) {
@@ -61,6 +61,15 @@ function validateForm(form: RegisterFormState): FieldError {
   }
 
   return errors;
+}
+
+function slugifyCompanyName(companyName: string): string {
+  return companyName
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 63);
 }
 
 const INITIAL_FORM: RegisterFormState = {
@@ -85,7 +94,7 @@ export default function RegisterPage() {
       setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
       if (submitError) setSubmitError(null);
     },
-    [submitError]
+    [submitError],
   );
 
   const handleSubmit = useCallback(
@@ -101,29 +110,27 @@ export default function RegisterPage() {
       setSubmitError(null);
 
       try {
-        // Register
-        await apiClient.post<void, {
-          companyName: string;
-          contactName: string;
-          email: string;
-          password: string;
-        }>("/api/auth/register", {
+        const companySlug = slugifyCompanyName(form.companyName);
+
+        // Register and establish the NextAuth session
+        const authResult = await apiClient.post<
+          AuthResponse,
+          {
+            companyName: string;
+            companySlug: string;
+            name: string;
+            email: string;
+            password: string;
+          }
+        >("/api/auth/register", {
           companyName: form.companyName.trim(),
-          contactName: form.contactName.trim(),
+          companySlug,
+          name: form.contactName.trim(),
           email: form.email.trim(),
           password: form.password,
         });
 
-        // Auto-login after successful registration
-        const authResult = await apiClient.post<AuthUser, {
-          email: string;
-          password: string;
-        }>("/api/auth/login", {
-          email: form.email.trim(),
-          password: form.password,
-        });
-
-        login(authResult);
+        login(authResult.user);
         router.push("/dashboard");
       } catch (err: unknown) {
         const message =
@@ -133,7 +140,7 @@ export default function RegisterPage() {
         setIsSubmitting(false);
       }
     },
-    [form, login, router]
+    [form, login, router],
   );
 
   const inputBaseClass =
@@ -146,7 +153,7 @@ export default function RegisterPage() {
     label: string,
     type: string = "text",
     placeholder: string = "",
-    options?: { autoComplete?: string; hint?: string }
+    options?: { autoComplete?: string; hint?: string },
   ) => (
     <div>
       <label htmlFor={`reg-${id}`} className="mb-1.5 block text-sm font-medium text-slate-300">
@@ -183,7 +190,10 @@ export default function RegisterPage() {
 
       {/* Error display */}
       {submitError && (
-        <div className="mb-4 rounded-lg border border-red-800 bg-red-900/30 px-4 py-3 text-sm text-red-300" role="alert">
+        <div
+          className="mb-4 rounded-lg border border-red-800 bg-red-900/30 px-4 py-3 text-sm text-red-300"
+          role="alert"
+        >
           {submitError}
         </div>
       )}
@@ -201,7 +211,7 @@ export default function RegisterPage() {
 
         {renderField("password", "Password", "password", "Create a strong password", {
           autoComplete: "new-password",
-          hint: "At least 8 characters with uppercase, lowercase, and a number",
+          hint: "At least 12 characters with uppercase, lowercase, and a number",
         })}
 
         {renderField("confirmPassword", "Confirm password", "password", "Re-enter your password", {
@@ -216,9 +226,25 @@ export default function RegisterPage() {
         >
           {isSubmitting ? (
             <>
-              <svg className="mr-2 h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              <svg
+                className="mr-2 h-4 w-4 animate-spin"
+                viewBox="0 0 24 24"
+                fill="none"
+                aria-hidden="true"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                />
               </svg>
               Creating account…
             </>

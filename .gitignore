@@ -49,8 +49,6 @@ Thumbs.db
 # Docker
 docker-compose.override.yml
 
-# Prisma
-prisma/migrations/
-
 # Misc
 .turbo/
+*.bak
