@@ -8,13 +8,16 @@
 
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import logger, { createPipelineLogger } from "@/lib/logger";
-import { PipelineError, PipelineRateLimitError } from "@/lib/errors";
+import { createPipelineLogger } from "@/lib/logger";
+import { PipelineError } from "@/lib/errors";
 import { createHash } from "crypto";
 import type {
   PipelineType,
   PipelineRunContext,
   PipelineExecutionResult,
+  PipelineBoundedExecutionOptions,
+  PipelineBoundedExecutionResult,
+  PipelinePreviewRecord,
   PipelineRecordError,
   PipelineFetchResult,
   DeduplicationCheck,
@@ -26,6 +29,7 @@ import type {
   TransformedRegulatorySource,
 } from "./types";
 import { DEFAULT_RETRY_CONFIG } from "./types";
+import { getPipelineCredentialStatus } from "./credentials";
 import type { SourceStatus } from "@prisma/client";
 
 // ============================================================================
@@ -339,23 +343,23 @@ export abstract class BasePipelineClient<TRaw, TTransformed extends TransformedR
    * Handles both creation and updates based on deduplication results.
    */
   async persist(transformed: TTransformed, dedup: DeduplicationCheck): Promise<string> {
+    const createData = this.buildPersistenceData(transformed, transformed.status);
+
     if (!dedup.exists) {
       // Create new record
-      const record = await prisma.regulatorySource.create({
-        data: {
-          sourceType: transformed.sourceType,
-          jurisdiction: transformed.jurisdiction,
-          name: transformed.name,
-          sourceId: transformed.sourceId,
-          sourceUrl: transformed.sourceUrl,
-          status: transformed.status,
-          introducedDate: transformed.introducedDate,
-          enactedDate: transformed.enactedDate,
-          effectiveDate: transformed.effectiveDate,
-          fullText: transformed.fullText,
-          rawApiResponse: transformed.rawApiResponse as unknown as Prisma.InputJsonValue,
-          processedAt: null, // Will be set when LLM processes it in Stage 3
+      const record = await prisma.regulatorySource.upsert({
+        where: {
+          sourceType_sourceId: {
+            sourceType: transformed.sourceType,
+            sourceId: transformed.sourceId,
+          },
         },
+        create: createData,
+        update: this.buildPersistenceData(
+          transformed,
+          transformed.status,
+          false,
+        ) as Prisma.RegulatorySourceUncheckedUpdateInput,
       });
       return record.id;
     }
@@ -364,23 +368,59 @@ export abstract class BasePipelineClient<TRaw, TTransformed extends TransformedR
       // Update existing record — content has changed since last fetch
       await prisma.regulatorySource.update({
         where: { id: dedup.existingId! },
-        data: {
-          name: transformed.name,
-          sourceUrl: transformed.sourceUrl,
-          status: mapExternalStatusToSourceStatus(transformed.status),
-          introducedDate: transformed.introducedDate,
-          enactedDate: transformed.enactedDate,
-          effectiveDate: transformed.effectiveDate,
-          fullText: transformed.fullText,
-          rawApiResponse: transformed.rawApiResponse as unknown as Prisma.InputJsonValue,
-          processingError: null, // Clear previous errors on update
-        },
+        data: this.buildPersistenceData(
+          transformed,
+          mapExternalStatusToSourceStatus(transformed.status),
+          false,
+        ) as Prisma.RegulatorySourceUncheckedUpdateInput,
       });
       return dedup.existingId!;
     }
 
     // No changes — skip
     return dedup.existingId!;
+  }
+
+  protected buildPersistenceData(
+    transformed: TTransformed,
+    status: SourceStatus,
+    includeCreateOnlyFields: boolean = true,
+  ): Prisma.RegulatorySourceUncheckedCreateInput {
+    const data = {
+      sourceType: transformed.sourceType,
+      jurisdiction: transformed.jurisdiction,
+      name: transformed.name,
+      title: transformed.title ?? transformed.name,
+      summary: transformed.summary ?? null,
+      sourceId: transformed.sourceId,
+      sourceUrl: transformed.sourceUrl,
+      citationUrl: transformed.citationUrl ?? transformed.sourceUrl,
+      status,
+      publishedAt: transformed.publishedAt ?? transformed.introducedDate,
+      observedAt: transformed.observedAt ?? new Date(),
+      sourceAgency: transformed.sourceAgency ?? null,
+      documentType: transformed.documentType ?? transformed.sourceType,
+      introducedDate: transformed.introducedDate,
+      enactedDate: transformed.enactedDate,
+      effectiveDate: transformed.effectiveDate,
+      fullText: transformed.fullText,
+      rawApiResponse: transformed.rawApiResponse as unknown as Prisma.InputJsonValue,
+      relevantCategories: transformed.relevantCategories as unknown as Prisma.InputJsonValue,
+      matchMetadata: (transformed.matchMetadata ?? {
+        isRelevant: transformed.isRelevant,
+        relevantCategories: transformed.relevantCategories,
+      }) as unknown as Prisma.InputJsonValue,
+      processingError: null,
+    };
+
+    if (!includeCreateOnlyFields) {
+      return data;
+    }
+
+    return {
+      ...data,
+      processedAt: null,
+    };
   }
 
   // ==========================================================================
@@ -493,7 +533,7 @@ export abstract class BasePipelineClient<TRaw, TTransformed extends TransformedR
             }
 
             // Step 4: Persist
-            const recordId = await this.persist(transformed, dedup);
+            await this.persist(transformed, dedup);
 
             if (dedup.exists && dedup.hasChanged) {
               totalUpdated++;
@@ -634,6 +674,236 @@ export abstract class BasePipelineClient<TRaw, TTransformed extends TransformedR
     }
   }
 
+  /**
+   * Execute a small bounded run. Dry-runs fetch, transform, and dedupe without
+   * persisting source records. Write mode is explicit and creates a PipelineRun.
+   */
+  async executeBounded(
+    options: PipelineBoundedExecutionOptions,
+  ): Promise<PipelineBoundedExecutionResult> {
+    const startedAtDate = new Date();
+    const startedAt = startedAtDate.toISOString();
+    const startTime = startedAtDate.getTime();
+    const credentialStatus = getPipelineCredentialStatus(this.config);
+    const errors: PipelineRecordError[] = [];
+    const previews: PipelinePreviewRecord[] = [];
+
+    if (!credentialStatus.configured) {
+      const completedAt = new Date().toISOString();
+      return {
+        pipelineType: this.pipelineType,
+        sourceName: this.config.name,
+        mode: options.mode,
+        limit: options.limit,
+        startedAt,
+        completedAt,
+        durationMs: Date.now() - startTime,
+        status: "blocked",
+        recordsFetched: 0,
+        recordsTransformed: 0,
+        recordsWritten: 0,
+        recordsCreated: 0,
+        recordsUpdated: 0,
+        recordsSkipped: 0,
+        dedupeHits: 0,
+        pipelineRunId: null,
+        errors,
+        previews,
+        blockedReason: "not_configured",
+        message: credentialStatus.message,
+      };
+    }
+
+    const run =
+      options.mode === "write"
+        ? await prisma.pipelineRun.create({
+            data: {
+              pipelineType: this.pipelineType,
+              status: "running",
+              recordsProcessed: 0,
+              recordsNew: 0,
+              recordsUpdated: 0,
+              recordsFailed: 0,
+              startedAt: startedAtDate,
+            },
+          })
+        : null;
+
+    let currentCursor = options.cursor ?? null;
+    let hasMorePages = true;
+    let remaining = options.limit;
+    let recordsFetched = 0;
+    let recordsTransformed = 0;
+    let recordsCreated = 0;
+    let recordsUpdated = 0;
+    let recordsSkipped = 0;
+    let dedupeHits = 0;
+
+    try {
+      while (hasMorePages && remaining > 0) {
+        const requestLimit = Math.min(remaining, 100);
+        const requestOpts = this.buildFetchRequest(currentCursor, requestLimit);
+        const response = await this.request<unknown>(requestOpts);
+        const fetchResult = this.parseFetchResponse(
+          response.data,
+          response.statusCode,
+          response.headers,
+        );
+
+        const pageRecords = fetchResult.records.slice(0, remaining);
+        recordsFetched += pageRecords.length;
+
+        for (const rawRecord of pageRecords) {
+          try {
+            const transformed = this.transform(rawRecord);
+            recordsTransformed++;
+            remaining--;
+
+            if (!transformed.isRelevant) {
+              recordsSkipped++;
+              previews.push(this.buildPreview(transformed, false, false));
+              continue;
+            }
+
+            const dedup = await this.deduplicate(transformed);
+            const duplicate = dedup.exists && !dedup.hasChanged;
+
+            previews.push(this.buildPreview(transformed, duplicate, dedup.hasChanged));
+
+            if (duplicate) {
+              dedupeHits++;
+              continue;
+            }
+
+            if (options.mode === "write") {
+              await this.persist(transformed, dedup);
+              if (dedup.exists && dedup.hasChanged) {
+                recordsUpdated++;
+              } else {
+                recordsCreated++;
+              }
+            }
+          } catch (error) {
+            errors.push({
+              sourceId: `record-${recordsTransformed}`,
+              error: error instanceof Error ? error.message : String(error),
+              stage: "persist",
+              retryable: false,
+            });
+          }
+        }
+
+        currentCursor = fetchResult.nextCursor;
+        hasMorePages = !fetchResult.isLastPage && fetchResult.records.length > 0;
+      }
+
+      const completedAtDate = new Date();
+      const status = errors.length > 0 ? "failed" : "completed";
+
+      if (run) {
+        await prisma.pipelineRun.update({
+          where: { id: run.id },
+          data: {
+            status,
+            recordsProcessed: recordsTransformed,
+            recordsNew: recordsCreated,
+            recordsUpdated,
+            recordsFailed: errors.length,
+            errorDetail: errors[0]?.error ?? null,
+            completedAt: completedAtDate,
+            duration: completedAtDate.getTime() - startTime,
+          },
+        });
+      }
+
+      return {
+        pipelineType: this.pipelineType,
+        sourceName: this.config.name,
+        mode: options.mode,
+        limit: options.limit,
+        startedAt,
+        completedAt: completedAtDate.toISOString(),
+        durationMs: completedAtDate.getTime() - startTime,
+        status,
+        recordsFetched,
+        recordsTransformed,
+        recordsWritten: recordsCreated + recordsUpdated,
+        recordsCreated,
+        recordsUpdated,
+        recordsSkipped,
+        dedupeHits,
+        pipelineRunId: run?.id ?? null,
+        errors,
+        previews: previews.slice(0, options.limit),
+      };
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      errors.push({
+        sourceId: `page-${currentCursor ?? "first"}`,
+        error: errMsg,
+        stage: "fetch",
+        retryable: true,
+      });
+
+      const completedAtDate = new Date();
+
+      if (run) {
+        await prisma.pipelineRun.update({
+          where: { id: run.id },
+          data: {
+            status: "failed",
+            recordsProcessed: recordsTransformed,
+            recordsNew: recordsCreated,
+            recordsUpdated,
+            recordsFailed: errors.length,
+            errorDetail: errMsg,
+            completedAt: completedAtDate,
+            duration: completedAtDate.getTime() - startTime,
+          },
+        });
+      }
+
+      return {
+        pipelineType: this.pipelineType,
+        sourceName: this.config.name,
+        mode: options.mode,
+        limit: options.limit,
+        startedAt,
+        completedAt: completedAtDate.toISOString(),
+        durationMs: completedAtDate.getTime() - startTime,
+        status: "failed",
+        recordsFetched,
+        recordsTransformed,
+        recordsWritten: recordsCreated + recordsUpdated,
+        recordsCreated,
+        recordsUpdated,
+        recordsSkipped,
+        dedupeHits,
+        pipelineRunId: run?.id ?? null,
+        errors,
+        previews: previews.slice(0, options.limit),
+      };
+    }
+  }
+
+  protected buildPreview(
+    transformed: TTransformed,
+    duplicate: boolean,
+    changed: boolean,
+  ): PipelinePreviewRecord {
+    return {
+      sourceId: transformed.sourceId,
+      sourceType: transformed.sourceType,
+      name: transformed.name,
+      jurisdiction: transformed.jurisdiction,
+      sourceUrl: transformed.sourceUrl,
+      status: transformed.status,
+      isRelevant: transformed.isRelevant,
+      duplicate,
+      changed,
+    };
+  }
+
   // ==========================================================================
   // Health check
   // ==========================================================================
@@ -643,12 +913,24 @@ export abstract class BasePipelineClient<TRaw, TTransformed extends TransformedR
    * Makes a lightweight request to verify connectivity and authentication.
    */
   async healthCheck(): Promise<boolean> {
+    const originalRetryConfig = this.retryConfig;
+
     try {
+      const credentialStatus = getPipelineCredentialStatus(this.config);
+      if (!credentialStatus.configured) return false;
+
       const requestOpts = this.buildFetchRequest(null, 1);
-      const response = await this.request<unknown>(requestOpts);
+      this.retryConfig = { ...this.retryConfig, maxRetries: 0 };
+
+      const response = await this.request<unknown>({
+        ...requestOpts,
+        timeoutMs: 5000,
+      });
       return response.statusCode >= 200 && response.statusCode < 300;
     } catch {
       return false;
+    } finally {
+      this.retryConfig = originalRetryConfig;
     }
   }
 

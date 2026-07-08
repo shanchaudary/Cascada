@@ -1,32 +1,45 @@
-// Cascada — Pipeline Type API Route
-// GET /api/pipelines/[type] — Get status of a specific pipeline
-// POST /api/pipelines/[type] — Trigger a specific pipeline run
-// PATCH /api/pipelines/[type] — Enable/disable a pipeline
+// Cascada - single pipeline status, bounded execution, and admin mutation API.
 
 import { NextRequest, NextResponse } from "next/server";
-import { pipelineOrchestrator } from "@/lib/pipelines/orchestrator";
+import { z, ZodError } from "zod";
+import { requirePipelineAccess } from "@/lib/api/pipeline-auth";
 import { AuthenticationError, AuthorizationError, PipelineError } from "@/lib/errors";
-import type { PipelineType } from "@/lib/pipelines/types";
-import { PIPELINE_TYPES } from "@/lib/pipelines/types";
+import { pipelineOrchestrator } from "@/lib/pipelines/orchestrator";
+import {
+  DEFAULT_PIPELINE_RUN_LIMIT,
+  MAX_PIPELINE_RUN_LIMIT,
+  PIPELINE_TYPES,
+  type PipelineExecutionMode,
+  type PipelineType,
+} from "@/lib/pipelines/types";
 
-// ============================================================================
-// Route context type
-// ============================================================================
 interface RouteContext {
   params: Promise<{ type: string }>;
 }
 
-// ============================================================================
-// GET /api/pipelines/[type] — Get specific pipeline status
-// ============================================================================
-export async function GET(
-  _request: NextRequest,
-  context: RouteContext
-) {
-  try {
-    const { type } = await context.params;
-    const pipelineType = validatePipelineType(type);
+const pipelineRunSchema = z
+  .object({
+    mode: z.enum(["dry_run", "write"]).default("dry_run"),
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(MAX_PIPELINE_RUN_LIMIT)
+      .default(DEFAULT_PIPELINE_RUN_LIMIT),
+    cursor: z.string().nullable().optional(),
+  })
+  .strict();
 
+const pipelinePatchSchema = z
+  .object({
+    enabled: z.boolean(),
+  })
+  .strict();
+
+export async function GET(_request: NextRequest, context: RouteContext) {
+  try {
+    await requirePipelineAccess("COMPLIANCE");
+    const pipelineType = await pipelineTypeFromContext(context);
     const status = pipelineOrchestrator.getPipelineStatus(pipelineType);
 
     return NextResponse.json({
@@ -55,124 +68,38 @@ export async function GET(
       },
     });
   } catch (error) {
-    if (error instanceof PipelineError) {
-      return NextResponse.json(
-        { error: { code: error.code, message: error.message } },
-        { status: error.statusCode }
-      );
-    }
-
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json(
-      { error: { code: "INTERNAL_ERROR", message } },
-      { status: 500 }
-    );
+    return pipelineErrorResponse(error);
   }
 }
 
-// ============================================================================
-// POST /api/pipelines/[type] — Trigger a specific pipeline run
-// ============================================================================
-export async function POST(
-  request: NextRequest,
-  context: RouteContext
-) {
+export async function POST(request: NextRequest, context: RouteContext) {
   try {
-    // TODO: Add auth check — only TENANT_ADMIN and COMPLIANCE can trigger
-    const { type } = await context.params;
-    const pipelineType = validatePipelineType(type);
+    await requirePipelineAccess("COMPLIANCE");
+    const pipelineType = await pipelineTypeFromContext(context);
+    const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+    const validated = pipelineRunSchema.parse(body);
+    const mode = validated.mode as PipelineExecutionMode;
 
-    const body = await request.json() as {
-      force?: boolean;
-      cursor?: string;
-      mode?: "standard" | "full";
-      sinceDate?: string;
-    };
-
-    const force = body.force ?? false;
-
-    // Determine execution mode
-    if (body.mode === "full") {
-      // Use the enhanced full pipeline methods
-      let result: unknown;
-      switch (pipelineType) {
-        case "legiscan":
-          result = await pipelineOrchestrator.runLegiScanFullPipeline();
-          break;
-        case "openfda":
-          result = await pipelineOrchestrator.runOpenFdaFullPipeline(body.sinceDate);
-          break;
-        case "federal_register":
-          result = await pipelineOrchestrator.runFederalRegisterFullPipeline(body.sinceDate);
-          break;
-        case "usda":
-          result = await pipelineOrchestrator.runUsdaFullPipeline();
-          break;
-      }
-
-      return NextResponse.json({ data: result });
-    }
-
-    // Standard execution
-    const result = await pipelineOrchestrator.runPipeline(pipelineType, {
-      force,
-      cursor: body.cursor ?? null,
+    const result = await pipelineOrchestrator.runPipelineBounded(pipelineType, {
+      mode,
+      limit: validated.limit,
+      cursor: validated.cursor ?? null,
     });
 
-    return NextResponse.json({
-      data: {
-        pipelineType: result.pipelineType,
-        status: result.status,
-        durationMs: result.durationMs,
-        fetched: result.fetched,
-        created: result.created,
-        updated: result.updated,
-        failed: result.failed,
-        skipped: result.skipped,
-        duplicates: result.duplicates,
-        errors: result.errors,
-      },
-    });
+    return NextResponse.json({ data: result });
   } catch (error) {
-    if (error instanceof PipelineError) {
-      return NextResponse.json(
-        { error: { code: error.code, message: error.message, context: error.context } },
-        { status: error.statusCode }
-      );
-    }
-
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json(
-      { error: { code: "INTERNAL_ERROR", message } },
-      { status: 500 }
-    );
+    return pipelineErrorResponse(error);
   }
 }
 
-// ============================================================================
-// PATCH /api/pipelines/[type] — Enable/disable a pipeline
-// ============================================================================
-export async function PATCH(
-  request: NextRequest,
-  context: RouteContext
-) {
+export async function PATCH(request: NextRequest, context: RouteContext) {
   try {
-    // TODO: Add auth check — only TENANT_ADMIN can enable/disable
-    const { type } = await context.params;
-    const pipelineType = validatePipelineType(type);
+    await requirePipelineAccess("TENANT_ADMIN");
+    const pipelineType = await pipelineTypeFromContext(context);
+    const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+    const validated = pipelinePatchSchema.parse(body);
 
-    const body = await request.json() as {
-      enabled?: boolean;
-    };
-
-    if (body.enabled === undefined) {
-      return NextResponse.json(
-        { error: { code: "INVALID_INPUT", message: "Must specify 'enabled' field" } },
-        { status: 400 }
-      );
-    }
-
-    if (body.enabled) {
+    if (validated.enabled) {
       pipelineOrchestrator.enablePipeline(pipelineType);
     } else {
       pipelineOrchestrator.disablePipeline(pipelineType);
@@ -188,32 +115,14 @@ export async function PATCH(
       },
     });
   } catch (error) {
-    if (error instanceof PipelineError) {
-      return NextResponse.json(
-        { error: { code: error.code, message: error.message } },
-        { status: error.statusCode }
-      );
-    }
-
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json(
-      { error: { code: "INTERNAL_ERROR", message } },
-      { status: 500 }
-    );
+    return pipelineErrorResponse(error);
   }
 }
 
-// ============================================================================
-// Health check endpoint
-// ============================================================================
-export async function PUT(
-  _request: NextRequest,
-  context: RouteContext
-) {
+export async function PUT(_request: NextRequest, context: RouteContext) {
   try {
-    const { type } = await context.params;
-    const pipelineType = validatePipelineType(type);
-
+    await requirePipelineAccess("COMPLIANCE");
+    const pipelineType = await pipelineTypeFromContext(context);
     const isHealthy = await pipelineOrchestrator.healthCheck(pipelineType);
 
     return NextResponse.json({
@@ -224,29 +133,51 @@ export async function PUT(
       },
     });
   } catch (error) {
-    if (error instanceof PipelineError) {
-      return NextResponse.json(
-        { error: { code: error.code, message: error.message } },
-        { status: error.statusCode }
-      );
-    }
-
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json(
-      { error: { code: "INTERNAL_ERROR", message } },
-      { status: 500 }
-    );
+    return pipelineErrorResponse(error);
   }
 }
 
-// ============================================================================
-// Helpers
-// ============================================================================
-function validatePipelineType(type: string): PipelineType {
+async function pipelineTypeFromContext(context: RouteContext): Promise<PipelineType> {
+  const { type } = await context.params;
   if (!PIPELINE_TYPES.includes(type as PipelineType)) {
     throw new PipelineError(type, `Invalid pipeline type: ${type}`, {
       validTypes: PIPELINE_TYPES,
     });
   }
   return type as PipelineType;
+}
+
+function pipelineErrorResponse(error: unknown): NextResponse {
+  if (error instanceof ZodError) {
+    return NextResponse.json(
+      {
+        error: {
+          code: "INVALID_INPUT",
+          message: "Invalid pipeline request",
+          issues: error.issues,
+          validTypes: PIPELINE_TYPES,
+          maxLimit: MAX_PIPELINE_RUN_LIMIT,
+        },
+      },
+      { status: 400 },
+    );
+  }
+
+  if (error instanceof AuthenticationError) {
+    return NextResponse.json({ error: { code: error.code, message: error.message } }, { status: 401 });
+  }
+
+  if (error instanceof AuthorizationError) {
+    return NextResponse.json({ error: { code: error.code, message: error.message } }, { status: 403 });
+  }
+
+  if (error instanceof PipelineError) {
+    return NextResponse.json(
+      { error: { code: error.code, message: error.message, context: error.context } },
+      { status: error.statusCode },
+    );
+  }
+
+  const message = error instanceof Error ? error.message : "Unknown error";
+  return NextResponse.json({ error: { code: "INTERNAL_ERROR", message } }, { status: 500 });
 }

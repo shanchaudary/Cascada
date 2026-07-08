@@ -11,16 +11,20 @@
 // 6. Auto-disable pipelines that fail too many times consecutively
 
 import { prisma } from "@/lib/db";
-import logger, { createPipelineLogger } from "@/lib/logger";
+import { createPipelineLogger } from "@/lib/logger";
 import { PipelineError } from "@/lib/errors";
-import type { PipelineType, PipelineExecutionResult } from "./types";
+import type {
+  PipelineType,
+  PipelineExecutionResult,
+  PipelineBoundedExecutionOptions,
+  PipelineBoundedExecutionResult,
+} from "./types";
 import { legiScanClient } from "./legiscan/client";
 import { openFdaClient } from "./openfda/client";
 import { federalRegisterClient } from "./federal-register/client";
 import { usdaClient } from "./usda/client";
 import { BasePipelineClient } from "./base-client";
 import type { TransformedRegulatorySource } from "./types";
-import type { SourceType } from "@prisma/client";
 
 // ============================================================================
 // Pipeline schedule configuration
@@ -251,6 +255,50 @@ export class PipelineOrchestrator {
     }
   }
 
+  async runPipelineBounded(
+    pipelineType: PipelineType,
+    options: PipelineBoundedExecutionOptions,
+  ): Promise<PipelineBoundedExecutionResult> {
+    const status = this.getPipelineStatus(pipelineType);
+
+    if (this.runningPipelines.has(pipelineType)) {
+      throw new PipelineError(pipelineType, "Pipeline is already running", {
+        currentStatus: status.currentStatus,
+      });
+    }
+
+    const client = this.clientMap.get(pipelineType);
+    if (!client) {
+      throw new PipelineError(pipelineType, "No client registered for pipeline type");
+    }
+
+    this.runningPipelines.add(pipelineType);
+    status.currentStatus = "running";
+
+    try {
+      const result = await client.executeBounded(options);
+      status.lastRunAt = new Date();
+      status.lastRunResult = null;
+
+      if (result.status === "completed" || result.status === "blocked") {
+        status.currentStatus = "idle";
+        if (result.status === "completed") {
+          status.lastSuccessAt = new Date();
+          status.consecutiveErrors = 0;
+          status.lastError = null;
+        }
+      } else {
+        status.currentStatus = "error";
+        status.consecutiveErrors++;
+        status.lastError = result.errors[0]?.error ?? "Bounded pipeline run failed";
+      }
+
+      return result;
+    } finally {
+      this.runningPipelines.delete(pipelineType);
+    }
+  }
+
   /**
    * Run all enabled pipelines in priority order.
    * Respects dependencies between pipelines.
@@ -333,7 +381,6 @@ export class PipelineOrchestrator {
    * This is more comprehensive than the standard execute() method.
    */
   async runLegiScanFullPipeline(): Promise<ReturnType<typeof legiScanClient.executeFullPipeline>> {
-    const pipelineLogger = createPipelineLogger("legiscan");
     const status = this.getPipelineStatus("legiscan");
 
     if (this.runningPipelines.has("legiscan")) {
@@ -384,6 +431,7 @@ export class PipelineOrchestrator {
    */
   async runOpenFdaFullPipeline(sinceDate?: string): Promise<ReturnType<typeof openFdaClient.executeFullPipeline>> {
     const status = this.getPipelineStatus("openfda");
+    const startedAt = new Date();
 
     if (this.runningPipelines.has("openfda")) {
       throw new PipelineError("openfda", "openFDA pipeline is already running");
@@ -394,6 +442,22 @@ export class PipelineOrchestrator {
 
     try {
       const result = await openFdaClient.executeFullPipeline(sinceDate);
+      const completedAt = new Date();
+
+      await prisma.pipelineRun.create({
+        data: {
+          pipelineType: "openfda",
+          status: result.errors.length > 0 ? "failed" : "completed",
+          recordsProcessed: result.enforcementsFetched,
+          recordsNew: result.created,
+          recordsUpdated: result.updated,
+          recordsFailed: result.errors.length,
+          errorDetail: result.errors[0]?.error ?? null,
+          startedAt,
+          completedAt,
+          duration: completedAt.getTime() - startedAt.getTime(),
+        },
+      });
 
       status.lastRunAt = new Date();
       status.lastSuccessAt = new Date();
@@ -419,6 +483,7 @@ export class PipelineOrchestrator {
    */
   async runFederalRegisterFullPipeline(sinceDate?: string): Promise<ReturnType<typeof federalRegisterClient.executeFullPipeline>> {
     const status = this.getPipelineStatus("federal_register");
+    const startedAt = new Date();
 
     if (this.runningPipelines.has("federal_register")) {
       throw new PipelineError("federal_register", "Federal Register pipeline is already running");
@@ -429,6 +494,22 @@ export class PipelineOrchestrator {
 
     try {
       const result = await federalRegisterClient.executeFullPipeline(sinceDate);
+      const completedAt = new Date();
+
+      await prisma.pipelineRun.create({
+        data: {
+          pipelineType: "federal_register",
+          status: result.errors.length > 0 ? "failed" : "completed",
+          recordsProcessed: result.documentsFetched,
+          recordsNew: result.created,
+          recordsUpdated: result.updated,
+          recordsFailed: result.errors.length,
+          errorDetail: result.errors[0]?.error ?? null,
+          startedAt,
+          completedAt,
+          duration: completedAt.getTime() - startedAt.getTime(),
+        },
+      });
 
       status.lastRunAt = new Date();
       status.lastSuccessAt = new Date();
@@ -454,6 +535,7 @@ export class PipelineOrchestrator {
    */
   async runUsdaFullPipeline(): Promise<ReturnType<typeof usdaClient.executeFullPipeline>> {
     const status = this.getPipelineStatus("usda");
+    const startedAt = new Date();
 
     if (this.runningPipelines.has("usda")) {
       throw new PipelineError("usda", "USDA pipeline is already running");
@@ -464,6 +546,22 @@ export class PipelineOrchestrator {
 
     try {
       const result = await usdaClient.executeFullPipeline();
+      const completedAt = new Date();
+
+      await prisma.pipelineRun.create({
+        data: {
+          pipelineType: "usda",
+          status: result.errors.length > 0 ? "failed" : "completed",
+          recordsProcessed: result.itemsFetched,
+          recordsNew: result.created,
+          recordsUpdated: result.updated,
+          recordsFailed: result.errors.length,
+          errorDetail: result.errors[0]?.error ?? null,
+          startedAt,
+          completedAt,
+          duration: completedAt.getTime() - startedAt.getTime(),
+        },
+      });
 
       status.lastRunAt = new Date();
       status.lastSuccessAt = new Date();

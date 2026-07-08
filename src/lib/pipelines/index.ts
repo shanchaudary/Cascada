@@ -4,6 +4,7 @@
 // Base infrastructure
 export { BasePipelineClient } from "./base-client";
 export { PipelineOrchestrator, pipelineOrchestrator } from "./orchestrator";
+export { getPipelineCredentialStatus } from "./credentials";
 
 // Types
 export type {

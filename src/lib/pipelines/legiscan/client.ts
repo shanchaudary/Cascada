@@ -22,6 +22,7 @@ import type {
   PipelineRequestOptions,
   TransformedRegulatorySource,
 } from "../types";
+import { getPipelineCredentialStatus } from "../credentials";
 import type {
   LegiScanApiResponse,
   LegiScanSearchResults,
@@ -110,7 +111,7 @@ export class LegiScanClient extends BasePipelineClient<
 
   protected buildFetchRequest(
     cursor: string | null,
-    limit: number
+    _limit: number
   ): PipelineRequestOptions {
     // The cursor format is: "{state}|{queryIndex}|{page}"
     // If no cursor, start with the first query
@@ -526,6 +527,39 @@ export class LegiScanClient extends BasePipelineClient<
       return null;
     }
     return `${nextIndex}|1`;
+  }
+
+  override async healthCheck(): Promise<boolean> {
+    const credentialStatus = getPipelineCredentialStatus(this.config);
+    if (!credentialStatus.configured) return false;
+
+    return super.healthCheck();
+  }
+
+  protected override buildUrl(options: PipelineRequestOptions): string {
+    const baseUrl = this.config.baseUrl.replace(/\/$/, "");
+    const path = options.path.startsWith("/") ? options.path : `/${options.path}`;
+    const url = new URL(`${baseUrl}${path}`);
+
+    const credentialStatus = getPipelineCredentialStatus(this.config);
+    const apiKey = process.env[this.config.apiKeyEnvVar]?.trim();
+    if (credentialStatus.configured && apiKey) {
+      url.searchParams.set("key", apiKey);
+    }
+
+    if (options.params) {
+      for (const [key, value] of Object.entries(options.params)) {
+        if (Array.isArray(value)) {
+          for (const item of value) {
+            url.searchParams.append(key, String(item));
+          }
+        } else {
+          url.searchParams.set(key, String(value));
+        }
+      }
+    }
+
+    return url.toString();
   }
 }
 

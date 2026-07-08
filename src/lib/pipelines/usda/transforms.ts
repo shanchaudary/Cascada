@@ -201,11 +201,10 @@ function mapDataTypeInfo(dataType: UsdaDataType): {
  *
  * This is different from other pipelines: USDA data enriches our
  * ingredient database rather than creating new regulatory sources.
- * We store it as INTERNATIONAL_REGULATION type as a reference data source.
+ * We store it as REFERENCE_DATA so it is not treated as regulatory law.
  */
 export function transformUsdaFoodItem(item: UsdaFoodItem): TransformedRegulatorySource {
   const relevance = checkUsdaRelevance(item);
-  const dataTypeInfo = mapDataTypeInfo(item.dataType);
 
   const name = buildUsdaItemName(item);
   const fullText = buildUsdaFullText(item);
@@ -213,17 +212,32 @@ export function transformUsdaFoodItem(item: UsdaFoodItem): TransformedRegulatory
 
   return {
     sourceId: `USDA-FDC-${item.fdcId}`,
-    sourceType: "INTERNATIONAL_REGULATION" as SourceType,
+    sourceType: "REFERENCE_DATA" as SourceType,
     jurisdiction: "US",
     name,
+    title: name,
+    summary: item.ingredients ?? item.description,
     sourceUrl: `https://fdc.nal.usda.gov/fdc-app.html#/food-details/${item.fdcId}`,
+    citationUrl: `https://fdc.nal.usda.gov/fdc-app.html#/food-details/${item.fdcId}`,
     status: "ACTIVE" as SourceStatus,
+    publishedAt: publicationDate,
+    observedAt: new Date(),
+    sourceAgency: "USDA FoodData Central",
+    documentType: `fooddata_${item.dataType}`,
     introducedDate: publicationDate,
     enactedDate: null,
     effectiveDate: null,
     fullText,
     rawApiResponse: item as unknown as Record<string, unknown>,
     relevantCategories: relevance.matchedCategories,
+    matchMetadata: {
+      source: "usda_fooddata_central",
+      role: "ingredient_product_reference",
+      confidence: relevance.confidence,
+      dataType: item.dataType,
+      foodCategory: item.foodCategory ?? null,
+      brandOwner: item.brandOwner ?? null,
+    },
     isRelevant: relevance.isRelevant,
   };
 }

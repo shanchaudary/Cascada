@@ -1,21 +1,35 @@
-// Cascada — Pipeline Status API Route
-// GET /api/pipelines — Get status of all pipelines
-// POST /api/pipelines — Trigger a pipeline run
+// Cascada - pipeline status and bounded execution API.
 
 import { NextRequest, NextResponse } from "next/server";
+import { z, ZodError } from "zod";
 import { pipelineOrchestrator } from "@/lib/pipelines/orchestrator";
+import {
+  DEFAULT_PIPELINE_RUN_LIMIT,
+  MAX_PIPELINE_RUN_LIMIT,
+  PIPELINE_TYPES,
+  type PipelineExecutionMode,
+  type PipelineType,
+} from "@/lib/pipelines/types";
 import { AuthenticationError, AuthorizationError, PipelineError } from "@/lib/errors";
-import type { PipelineType } from "@/lib/pipelines/types";
-import { PIPELINE_TYPES } from "@/lib/pipelines/types";
+import { requirePipelineAccess } from "@/lib/api/pipeline-auth";
 
-// ============================================================================
-// GET /api/pipelines — Get pipeline status summary
-// ============================================================================
-export async function GET(_request: NextRequest) {
+const pipelinePostSchema = z
+  .object({
+    pipelineType: z.enum(["legiscan", "openfda", "federal_register", "usda"]),
+    mode: z.enum(["dry_run", "write"]).default("dry_run"),
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(MAX_PIPELINE_RUN_LIMIT)
+      .default(DEFAULT_PIPELINE_RUN_LIMIT),
+    cursor: z.string().nullable().optional(),
+  })
+  .strict();
+
+export async function GET() {
   try {
-    // TODO: Add auth check when Stage 8 implements full API auth
-    // const session = await getServerSession(authOptions);
-    // if (!session) throw new AuthenticationError();
+    await requirePipelineAccess("COMPLIANCE");
 
     const summary = pipelineOrchestrator.getSummary();
 
@@ -37,125 +51,62 @@ export async function GET(_request: NextRequest) {
       },
     });
   } catch (error) {
-    if (error instanceof AuthenticationError) {
-      return NextResponse.json({ error: { code: "AUTH_REQUIRED", message: error.message } }, { status: 401 });
-    }
-    if (error instanceof AuthorizationError) {
-      return NextResponse.json({ error: { code: "FORBIDDEN", message: error.message } }, { status: 403 });
-    }
-
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json(
-      { error: { code: "INTERNAL_ERROR", message } },
-      { status: 500 }
-    );
+    return pipelineErrorResponse(error);
   }
 }
 
-// ============================================================================
-// POST /api/pipelines — Trigger a pipeline run
-// ============================================================================
 export async function POST(request: NextRequest) {
   try {
-    // TODO: Add auth check — only TENANT_ADMIN and COMPLIANCE can trigger pipelines
-    // const session = await getServerSession(authOptions);
-    // if (!session) throw new AuthenticationError();
-    // if (!["TENANT_ADMIN", "COMPLIANCE"].includes(session.user.role)) {
-    //   throw new AuthorizationError("Only admins can trigger pipeline runs");
-    // }
+    await requirePipelineAccess("COMPLIANCE");
 
-    const body = await request.json() as {
-      pipelineType?: string;
-      force?: boolean;
-      cursor?: string;
-    };
+    const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+    const validated = pipelinePostSchema.parse(body);
+    const pipelineType = validated.pipelineType as PipelineType;
+    const mode = validated.mode as PipelineExecutionMode;
 
-    // Validate pipeline type
-    const pipelineType = body.pipelineType as PipelineType | undefined;
-
-    if (pipelineType && !PIPELINE_TYPES.includes(pipelineType)) {
-      return NextResponse.json(
-        {
-          error: {
-            code: "INVALID_INPUT",
-            message: `Invalid pipeline type: ${pipelineType}`,
-            validTypes: PIPELINE_TYPES,
-          },
-        },
-        { status: 400 }
-      );
-    }
-
-    // Run a specific pipeline or all pipelines
-    if (pipelineType) {
-      const result = await pipelineOrchestrator.runPipeline(pipelineType, {
-        force: body.force ?? false,
-        cursor: body.cursor ?? null,
-      });
-
-      return NextResponse.json({
-        data: {
-          pipelineType: result.pipelineType,
-          status: result.status,
-          durationMs: result.durationMs,
-          fetched: result.fetched,
-          created: result.created,
-          updated: result.updated,
-          failed: result.failed,
-          skipped: result.skipped,
-          duplicates: result.duplicates,
-          errors: result.errors,
-        },
-      });
-    }
-
-    // Run all pipelines
-    const results = await pipelineOrchestrator.runAllPipelines({
-      force: body.force ?? false,
+    const result = await pipelineOrchestrator.runPipelineBounded(pipelineType, {
+      mode,
+      limit: validated.limit,
+      cursor: validated.cursor ?? null,
     });
 
-    const response: Record<string, unknown> = {};
-    for (const [type, result] of results) {
-      if (result instanceof Error) {
-        response[type] = {
-          pipelineType: type,
-          status: "failed",
-          error: result.message,
-        };
-      } else {
-        response[type] = {
-          pipelineType: result.pipelineType,
-          status: result.status,
-          durationMs: result.durationMs,
-          fetched: result.fetched,
-          created: result.created,
-          updated: result.updated,
-          failed: result.failed,
-          skipped: result.skipped,
-          duplicates: result.duplicates,
-        };
-      }
-    }
-
-    return NextResponse.json({ data: response });
+    return NextResponse.json({ data: result });
   } catch (error) {
-    if (error instanceof AuthenticationError) {
-      return NextResponse.json({ error: { code: "AUTH_REQUIRED", message: error.message } }, { status: 401 });
-    }
-    if (error instanceof AuthorizationError) {
-      return NextResponse.json({ error: { code: "FORBIDDEN", message: error.message } }, { status: 403 });
-    }
-    if (error instanceof PipelineError) {
-      return NextResponse.json(
-        { error: { code: error.code, message: error.message, context: error.context } },
-        { status: error.statusCode }
-      );
-    }
+    return pipelineErrorResponse(error);
+  }
+}
 
-    const message = error instanceof Error ? error.message : "Unknown error";
+function pipelineErrorResponse(error: unknown): NextResponse {
+  if (error instanceof ZodError) {
     return NextResponse.json(
-      { error: { code: "INTERNAL_ERROR", message } },
-      { status: 500 }
+      {
+        error: {
+          code: "INVALID_INPUT",
+          message: "Invalid pipeline request",
+          issues: error.issues,
+          validTypes: PIPELINE_TYPES,
+          maxLimit: MAX_PIPELINE_RUN_LIMIT,
+        },
+      },
+      { status: 400 },
     );
   }
+
+  if (error instanceof AuthenticationError) {
+    return NextResponse.json({ error: { code: error.code, message: error.message } }, { status: 401 });
+  }
+
+  if (error instanceof AuthorizationError) {
+    return NextResponse.json({ error: { code: error.code, message: error.message } }, { status: 403 });
+  }
+
+  if (error instanceof PipelineError) {
+    return NextResponse.json(
+      { error: { code: error.code, message: error.message, context: error.context } },
+      { status: error.statusCode },
+    );
+  }
+
+  const message = error instanceof Error ? error.message : "Unknown error";
+  return NextResponse.json({ error: { code: "INTERNAL_ERROR", message } }, { status: 500 });
 }

@@ -465,7 +465,11 @@ export class FederalRegisterClient extends BasePipelineClient<
    * connectivity without credential checks or detail-only fields.
    */
   override async healthCheck(): Promise<boolean> {
+    const originalRetryConfig = this.retryConfig;
+
     try {
+      this.retryConfig = { ...this.retryConfig, maxRetries: 0 };
+
       const response = await this.request<FederalRegisterSearchResponse>({
         path: "documents.json",
         params: {
@@ -474,12 +478,14 @@ export class FederalRegisterClient extends BasePipelineClient<
           "conditions[agencies][]": ["food-and-drug-administration"],
           "fields[]": ["document_number", "title", "type"],
         },
-        timeoutMs: 15000,
+        timeoutMs: 5000,
       });
 
       return response.statusCode >= 200 && response.statusCode < 300;
     } catch {
       return false;
+    } finally {
+      this.retryConfig = originalRetryConfig;
     }
   }
 

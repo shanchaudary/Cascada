@@ -15,7 +15,6 @@
 
 import { BasePipelineClient } from "../base-client";
 import { PIPELINE_CONFIG } from "@/lib/constants";
-import { PipelineError } from "@/lib/errors";
 import { createPipelineLogger } from "@/lib/logger";
 import type {
   PipelineSourceConfig,
@@ -27,7 +26,6 @@ import type {
   UsdaSearchResponse,
   UsdaFoodItem,
   UsdaSearchParams,
-  UsdaDataType,
 } from "./types";
 import { USDA_INGREDIENT_QUERIES } from "./types";
 import { transformUsdaFoodItem } from "./transforms";

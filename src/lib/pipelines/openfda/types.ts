@@ -1,7 +1,6 @@
 // Cascada — openFDA Pipeline Types
 // Type definitions for the openFDA API.
-// openFDA provides access to FDA public data including food enforcement reports,
-// GRAS notices, and food facility registrations.
+// Cascada only runs the official food enforcement endpoint in ingestion.
 // API docs: https://open.fda.gov/apis/
 
 // ============================================================================
@@ -198,8 +197,10 @@ export const FDA_CLASSIFICATION: Readonly<Record<string, string>> = {
 // ============================================================================
 export const OPENFDA_ENDPOINTS = {
   FOOD_ENFORCEMENT: "food/enforcement.json",
+} as const;
+
+export const OPENFDA_UNSUPPORTED_ENDPOINTS = {
   FOOD_GRAS: "food/gras.json",
-  FOOD_FACILITY: "food/registration.json",
   FOOD_ADDITIVE: "food/additive.json",
   FOOD_COLOR_ADDITIVE: "food/coloradditive.json",
 } as const;

@@ -1,18 +1,16 @@
 // Cascada — openFDA Pipeline Client
 // Concrete implementation of the openFDA data ingestion pipeline.
-// Fetches food enforcement reports, GRAS notices, additive petitions,
-// and color additive data from the FDA's public API.
+// Fetches food enforcement reports from the FDA's public API.
 // API: https://api.fda.gov/
 //
 // Pipeline flow:
 // 1. Fetch recent food enforcement (recall) records
-// 2. Fetch GRAS notices
-// 3. Fetch food additive petitions
-// 4. Transform records into TransformedRegulatorySource
-// 5. Deduplicate against existing records
-// 6. Persist new/updated records
+// 2. Transform records into TransformedRegulatorySource
+// 3. Deduplicate against existing records
+// 4. Persist new/updated records
 //
-// openFDA rate limits: 240 requests/min with API key, 40/min without.
+// openFDA rate limits: 240 requests/minute with or without an API key;
+// API keys increase the daily request cap.
 
 import { BasePipelineClient } from "../base-client";
 import { PIPELINE_CONFIG } from "@/lib/constants";
@@ -28,18 +26,10 @@ import type {
 import type {
   OpenFdaApiResponse,
   OpenFdaFoodEnforcement,
-  OpenFdaGrasNotice,
-  OpenFdaFoodAdditivePetition,
-  OpenFdaColorAdditive,
   OpenFdaEndpoint,
 } from "./types";
-import { OPENFDA_ENDPOINTS, OPENFDA_ENFORCEMENT_QUERIES } from "./types";
-import {
-  transformEnforcementRecord,
-  transformGrasNotice,
-  transformAdditivePetition,
-  transformColorAdditive,
-} from "./transforms";
+import { OPENFDA_ENDPOINTS } from "./types";
+import { transformEnforcementRecord } from "./transforms";
 
 // ============================================================================
 // Pipeline configuration
@@ -63,7 +53,7 @@ const OPENFDA_CONFIG: PipelineSourceConfig = {
 // ============================================================================
 // FDA endpoint fetch phases
 // ============================================================================
-type FdaFetchPhase = "enforcement" | "gras" | "additive" | "color_additive";
+type FdaFetchPhase = "enforcement";
 
 interface FdaFetchPlan {
   phase: FdaFetchPhase;
@@ -77,7 +67,7 @@ interface FdaFetchPlan {
 // openFDA Pipeline Client
 // ============================================================================
 export class OpenFdaClient extends BasePipelineClient<
-  OpenFdaFoodEnforcement | OpenFdaGrasNotice | OpenFdaFoodAdditivePetition | OpenFdaColorAdditive,
+  OpenFdaFoodEnforcement,
   TransformedRegulatorySource
 > {
   readonly pipelineType = "openfda" as const;
@@ -143,12 +133,8 @@ export class OpenFdaClient extends BasePipelineClient<
     responseData: unknown,
     _statusCode: number,
     _headers: Record<string, string>
-  ): PipelineFetchResult<
-    OpenFdaFoodEnforcement | OpenFdaGrasNotice | OpenFdaFoodAdditivePetition | OpenFdaColorAdditive
-  > {
-    const apiResponse = responseData as OpenFdaApiResponse<
-      OpenFdaFoodEnforcement | OpenFdaGrasNotice | OpenFdaFoodAdditivePetition | OpenFdaColorAdditive
-    >;
+  ): PipelineFetchResult<OpenFdaFoodEnforcement> {
+    const apiResponse = responseData as OpenFdaApiResponse<OpenFdaFoodEnforcement>;
 
     // Check for API errors
     if (apiResponse.error) {
@@ -169,7 +155,6 @@ export class OpenFdaClient extends BasePipelineClient<
 
     const results = apiResponse.results ?? [];
     const totalAvailable = apiResponse.meta?.results?.total ?? results.length;
-    const currentLimit = this.fetchPlan[this.currentPhaseIndex]?.limit ?? 100;
     const currentSkip = this.fetchPlan[this.currentPhaseIndex]?.currentSkip ?? 0;
 
     // Check if this is the last page for the current phase
@@ -197,24 +182,8 @@ export class OpenFdaClient extends BasePipelineClient<
     };
   }
 
-  transform(
-    raw: OpenFdaFoodEnforcement | OpenFdaGrasNotice | OpenFdaFoodAdditivePetition | OpenFdaColorAdditive
-  ): TransformedRegulatorySource {
-    const phase = this.fetchPlan[this.currentPhaseIndex];
-
-    switch (phase?.phase) {
-      case "enforcement":
-        return transformEnforcementRecord(raw as OpenFdaFoodEnforcement);
-      case "gras":
-        return transformGrasNotice(raw as OpenFdaGrasNotice);
-      case "additive":
-        return transformAdditivePetition(raw as OpenFdaFoodAdditivePetition);
-      case "color_additive":
-        return transformColorAdditive(raw as OpenFdaColorAdditive);
-      default:
-        // Default to enforcement transform
-        return transformEnforcementRecord(raw as OpenFdaFoodEnforcement);
-    }
+  transform(raw: OpenFdaFoodEnforcement): TransformedRegulatorySource {
+    return transformEnforcementRecord(raw);
   }
 
   // ==========================================================================
@@ -280,66 +249,11 @@ export class OpenFdaClient extends BasePipelineClient<
   }
 
   /**
-   * Fetch GRAS notices.
-   * Returns notices matching the given criteria.
-   */
-  async fetchGrasNotices(limit: number = 100): Promise<OpenFdaGrasNotice[]> {
-    const response = await this.request<
-      OpenFdaApiResponse<OpenFdaGrasNotice>
-    >({
-      path: OPENFDA_ENDPOINTS.FOOD_GRAS,
-      params: {
-        limit: Math.min(limit, 100),
-        sort: "date_completed:desc",
-      },
-    });
-
-    return response.data.results ?? [];
-  }
-
-  /**
-   * Search GRAS notices for a specific substance.
-   */
-  async searchGrasNotices(substance: string): Promise<OpenFdaGrasNotice[]> {
-    const response = await this.request<
-      OpenFdaApiResponse<OpenFdaGrasNotice>
-    >({
-      path: OPENFDA_ENDPOINTS.FOOD_GRAS,
-      params: {
-        search: `subject:"${substance}"`,
-        limit: 100,
-      },
-    });
-
-    return response.data.results ?? [];
-  }
-
-  /**
-   * Fetch food additive petitions.
-   */
-  async fetchAdditivePetitions(limit: number = 100): Promise<OpenFdaFoodAdditivePetition[]> {
-    const response = await this.request<
-      OpenFdaApiResponse<OpenFdaFoodAdditivePetition>
-    >({
-      path: OPENFDA_ENDPOINTS.FOOD_ADDITIVE,
-      params: {
-        limit: Math.min(limit, 100),
-        sort: "date_of_decision:desc",
-      },
-    });
-
-    return response.data.results ?? [];
-  }
-
-  /**
    * Execute the full openFDA pipeline.
-   * Fetches from all endpoints: enforcement, GRAS, additives, color additives.
+   * Fetches only the official food enforcement endpoint.
    */
   async executeFullPipeline(sinceDate?: string): Promise<{
     enforcementsFetched: number;
-    grasFetched: number;
-    additivesFetched: number;
-    colorAdditivesFetched: number;
     created: number;
     updated: number;
     skipped: number;
@@ -348,9 +262,6 @@ export class OpenFdaClient extends BasePipelineClient<
     const pipelineLogger = createPipelineLogger("openfda");
     const errors: Array<{ sourceId: string; error: string }> = [];
     let enforcementsFetched = 0;
-    let grasFetched = 0;
-    let additivesFetched = 0;
-    let colorAdditivesFetched = 0;
     let created = 0;
     let updated = 0;
     let skipped = 0;
@@ -392,113 +303,9 @@ export class OpenFdaClient extends BasePipelineClient<
       errors.push({ sourceId: "enforcement-phase", error: errMsg });
     }
 
-    // Phase 2: GRAS notices
-    try {
-      const grasNotices = await this.fetchGrasNotices();
-      grasFetched = grasNotices.length;
-
-      for (const record of grasNotices) {
-        try {
-          const transformed = transformGrasNotice(record);
-          if (!transformed.isRelevant) {
-            skipped++;
-            continue;
-          }
-
-          const dedup = await this.deduplicate(transformed);
-          if (dedup.exists && !dedup.hasChanged) continue;
-
-          await this.persist(transformed, dedup);
-          if (dedup.exists && dedup.hasChanged) {
-            updated++;
-          } else {
-            created++;
-          }
-        } catch (err) {
-          const errMsg = err instanceof Error ? err.message : String(err);
-          errors.push({ sourceId: `GRAS-${record.gras_notice_number}`, error: errMsg });
-        }
-      }
-    } catch (err) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      pipelineLogger.error({ error: errMsg }, "GRAS fetch phase failed");
-      errors.push({ sourceId: "gras-phase", error: errMsg });
-    }
-
-    // Phase 3: Food additive petitions
-    try {
-      const petitions = await this.fetchAdditivePetitions();
-      additivesFetched = petitions.length;
-
-      for (const record of petitions) {
-        try {
-          const transformed = transformAdditivePetition(record);
-          if (!transformed.isRelevant) {
-            skipped++;
-            continue;
-          }
-
-          const dedup = await this.deduplicate(transformed);
-          if (dedup.exists && !dedup.hasChanged) continue;
-
-          await this.persist(transformed, dedup);
-          if (dedup.exists && dedup.hasChanged) {
-            updated++;
-          } else {
-            created++;
-          }
-        } catch (err) {
-          const errMsg = err instanceof Error ? err.message : String(err);
-          errors.push({ sourceId: `FAP-${record.fap_number}`, error: errMsg });
-        }
-      }
-    } catch (err) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      pipelineLogger.error({ error: errMsg }, "Additive petition phase failed");
-      errors.push({ sourceId: "additive-phase", error: errMsg });
-    }
-
-    // Phase 4: Color additives
-    try {
-      const response = await this.request<
-        OpenFdaApiResponse<OpenFdaColorAdditive>
-      >({
-        path: OPENFDA_ENDPOINTS.FOOD_COLOR_ADDITIVE,
-        params: { limit: 100 },
-      });
-
-      const colorAdditives = response.data.results ?? [];
-      colorAdditivesFetched = colorAdditives.length;
-
-      for (const record of colorAdditives) {
-        try {
-          const transformed = transformColorAdditive(record);
-          const dedup = await this.deduplicate(transformed);
-          if (dedup.exists && !dedup.hasChanged) continue;
-
-          await this.persist(transformed, dedup);
-          if (dedup.exists && dedup.hasChanged) {
-            updated++;
-          } else {
-            created++;
-          }
-        } catch (err) {
-          const errMsg = err instanceof Error ? err.message : String(err);
-          errors.push({ sourceId: `COLOR-${record.id}`, error: errMsg });
-        }
-      }
-    } catch (err) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      pipelineLogger.error({ error: errMsg }, "Color additive phase failed");
-      errors.push({ sourceId: "color-additive-phase", error: errMsg });
-    }
-
     pipelineLogger.info(
       {
         enforcementsFetched,
-        grasFetched,
-        additivesFetched,
-        colorAdditivesFetched,
         created,
         updated,
         skipped,
@@ -509,9 +316,6 @@ export class OpenFdaClient extends BasePipelineClient<
 
     return {
       enforcementsFetched,
-      grasFetched,
-      additivesFetched,
-      colorAdditivesFetched,
       created,
       updated,
       skipped,
@@ -524,43 +328,17 @@ export class OpenFdaClient extends BasePipelineClient<
   // ==========================================================================
 
   /**
-   * Initialize the multi-phase fetch plan.
-   * Each phase fetches from a different openFDA endpoint.
+   * Initialize the fetch plan for the official food enforcement endpoint.
    */
   private initializeFetchPlan(limit: number): void {
     const sinceDate = this.getDefaultSinceDate();
     const today = toDateString(new Date());
 
     this.fetchPlan = [
-      // Phase 1: Recent food enforcement records
       {
         phase: "enforcement",
         endpoint: OPENFDA_ENDPOINTS.FOOD_ENFORCEMENT,
         searchQuery: `recall_initiation_date:[${sinceDate} TO ${today}]`,
-        currentSkip: 0,
-        limit: Math.min(limit, 100),
-      },
-      // Phase 2: Recent GRAS notices
-      {
-        phase: "gras",
-        endpoint: OPENFDA_ENDPOINTS.FOOD_GRAS,
-        searchQuery: null,
-        currentSkip: 0,
-        limit: Math.min(limit, 100),
-      },
-      // Phase 3: Food additive petitions
-      {
-        phase: "additive",
-        endpoint: OPENFDA_ENDPOINTS.FOOD_ADDITIVE,
-        searchQuery: null,
-        currentSkip: 0,
-        limit: Math.min(limit, 100),
-      },
-      // Phase 4: Color additives
-      {
-        phase: "color_additive",
-        endpoint: OPENFDA_ENDPOINTS.FOOD_COLOR_ADDITIVE,
-        searchQuery: null,
         currentSkip: 0,
         limit: Math.min(limit, 100),
       },

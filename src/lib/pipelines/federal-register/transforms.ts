@@ -211,14 +211,27 @@ export function transformFederalRegisterDocument(
     sourceType,
     jurisdiction: "US", // Federal Register is always federal
     name,
+    title: doc.title,
+    summary: doc.abstract ?? doc.excerpts ?? null,
     sourceUrl: documentUrl(doc),
+    citationUrl: documentUrl(doc),
     status,
+    publishedAt: publicationDate,
+    observedAt: new Date(),
+    sourceAgency: agencies.map(agencyDisplayName).join(", ") || null,
+    documentType: normalizeFederalRegisterDocumentType(doc.type),
     introducedDate,
     enactedDate,
     effectiveDate,
     fullText,
     rawApiResponse: doc as unknown as Record<string, unknown>,
     relevantCategories: relevance.matchedCategories,
+    matchMetadata: {
+      source: "federal_register",
+      confidence: relevance.confidence,
+      agencies: agencies.map((agency) => agency.slug ?? agency.name ?? agency.raw_name),
+      documentType: doc.type,
+    },
     isRelevant: relevance.isRelevant,
   };
 }

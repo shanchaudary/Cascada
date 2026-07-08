@@ -3,7 +3,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { pipelineOrchestrator } from "@/lib/pipelines/orchestrator";
-import { PipelineError } from "@/lib/errors";
+import { AuthenticationError, AuthorizationError, PipelineError } from "@/lib/errors";
+import { requirePipelineAccess } from "@/lib/api/pipeline-auth";
 import type { PipelineType } from "@/lib/pipelines/types";
 import { PIPELINE_TYPES } from "@/lib/pipelines/types";
 
@@ -22,6 +23,7 @@ export async function GET(
   context: RouteContext
 ) {
   try {
+    await requirePipelineAccess("COMPLIANCE");
     const { type } = await context.params;
 
     // Validate pipeline type
@@ -70,6 +72,20 @@ export async function GET(
       },
     });
   } catch (error) {
+    if (error instanceof AuthenticationError) {
+      return NextResponse.json(
+        { error: { code: error.code, message: error.message } },
+        { status: 401 }
+      );
+    }
+
+    if (error instanceof AuthorizationError) {
+      return NextResponse.json(
+        { error: { code: error.code, message: error.message } },
+        { status: 403 }
+      );
+    }
+
     if (error instanceof PipelineError) {
       return NextResponse.json(
         { error: { code: error.code, message: error.message } },

@@ -20,6 +20,11 @@ export const PIPELINE_TYPES: readonly PipelineType[] = [
 // Pipeline execution lifecycle
 // ============================================================================
 export type PipelineRunStatus = "running" | "completed" | "failed";
+export type PipelineExecutionMode = "dry_run" | "write";
+export type PipelineBoundedRunStatus = PipelineRunStatus | "blocked";
+
+export const DEFAULT_PIPELINE_RUN_LIMIT = 10;
+export const MAX_PIPELINE_RUN_LIMIT = 25;
 
 export interface PipelineRunContext {
   runId: string;
@@ -106,10 +111,24 @@ export interface TransformedRegulatorySource {
   jurisdiction: string;
   /** Human-readable name */
   name: string;
+  /** Source title, when distinct from display name */
+  title?: string | null;
+  /** Short source summary or description */
+  summary?: string | null;
   /** URL to the source document */
   sourceUrl: string | null;
+  /** Citation URL to preserve source evidence */
+  citationUrl?: string | null;
   /** Current status of the source in our system */
   status: SourceStatus;
+  /** Date the source was published, if known */
+  publishedAt?: Date | null;
+  /** Date Cascada observed/fetched this source */
+  observedAt?: Date | null;
+  /** Agency or source owner, if available */
+  sourceAgency?: string | null;
+  /** Source-specific document/category type */
+  documentType?: string | null;
   /** Date the source was introduced/published */
   introducedDate: Date | null;
   /** Date the source was enacted/effective */
@@ -122,6 +141,8 @@ export interface TransformedRegulatorySource {
   rawApiResponse: Record<string, unknown>;
   /** Keywords/categories relevant to food manufacturing */
   relevantCategories: string[];
+  /** Match metadata for auditability */
+  matchMetadata?: Record<string, unknown> | null;
   /** Whether this record is likely relevant to food manufacturing */
   isRelevant: boolean;
 }
@@ -164,6 +185,47 @@ export interface PipelineExecutionResult {
   errors: PipelineRecordError[];
   /** Run status */
   status: PipelineRunStatus;
+}
+
+export interface PipelineBoundedExecutionOptions {
+  mode: PipelineExecutionMode;
+  limit: number;
+  cursor?: string | null;
+}
+
+export interface PipelinePreviewRecord {
+  sourceId: string;
+  sourceType: SourceType;
+  name: string;
+  jurisdiction: string;
+  sourceUrl: string | null;
+  status: SourceStatus;
+  isRelevant: boolean;
+  duplicate: boolean;
+  changed: boolean;
+}
+
+export interface PipelineBoundedExecutionResult {
+  pipelineType: PipelineType;
+  sourceName: string;
+  mode: PipelineExecutionMode;
+  limit: number;
+  startedAt: string;
+  completedAt: string;
+  durationMs: number;
+  status: PipelineBoundedRunStatus;
+  recordsFetched: number;
+  recordsTransformed: number;
+  recordsWritten: number;
+  recordsCreated: number;
+  recordsUpdated: number;
+  recordsSkipped: number;
+  dedupeHits: number;
+  pipelineRunId: string | null;
+  errors: PipelineRecordError[];
+  previews: PipelinePreviewRecord[];
+  blockedReason?: "not_configured";
+  message?: string;
 }
 
 export interface PipelineRecordError {
@@ -247,6 +309,9 @@ export interface IPipelineClient<TRaw, TTransformed> {
 
   /** Execute the full pipeline: fetch → transform → deduplicate → persist */
   execute(cursor?: string | null): Promise<PipelineExecutionResult>;
+
+  /** Execute a bounded dry-run or explicit write run */
+  executeBounded(options: PipelineBoundedExecutionOptions): Promise<PipelineBoundedExecutionResult>;
 
   /** Validate that the pipeline can connect to its external API */
   healthCheck(): Promise<boolean>;

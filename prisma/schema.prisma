@@ -344,6 +344,15 @@ model RegulatorySource {
   name            String // "California AB 418", "Texas SB 25", etc.
   sourceId        String? // LegiScan bill ID, Federal Register document ID, etc.
   sourceUrl       String?
+  title           String?
+  summary         String?      @db.Text
+  citationUrl     String?
+  publishedAt     DateTime?
+  observedAt      DateTime     @default(now())
+  sourceAgency    String?
+  documentType    String?
+  relevantCategories Json?
+  matchMetadata   Json?
   status          SourceStatus
   introducedDate  DateTime?
   enactedDate     DateTime?
@@ -357,6 +366,7 @@ model RegulatorySource {
 
   rules Rule[]
 
+  @@unique([sourceType, sourceId])
   @@map("regulatory_sources")
 }
 
@@ -369,6 +379,7 @@ enum SourceType {
   FEDERAL_REGISTER_NOTICE
   RETAILER_MANDATE
   INTERNATIONAL_REGULATION
+  REFERENCE_DATA
 }
 
 enum SourceStatus {

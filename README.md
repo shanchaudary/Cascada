@@ -124,6 +124,15 @@ These are platform-level data-source credentials. Federal Register is the except
 
 The app must never expose the secret values to the browser. Admin UI may show configured/missing status, masked labels, test results, and last successful sync timestamps, but secret value storage and rotation should be handled by the platform secret store.
 
+Regulatory ingestion trigger routes are authenticated operational endpoints. `POST /api/pipelines` and `POST /api/pipelines/[type]` default to `mode: "dry_run"`, require a specific pipeline type, and enforce a maximum bounded limit of 25 records. `mode: "write"` must be explicit and creates `PipelineRun` observability rows. Dry-runs fetch, transform, and dedupe preview records but do not persist source records.
+
+Source semantics:
+
+- Federal Register is a public no-key source that uses Federal Register document search.
+- openFDA ingestion is limited to the official food enforcement endpoint first.
+- USDA FoodData Central is ingredient/product/nutrition reference data and is stored as `REFERENCE_DATA`, not regulatory law.
+- LegiScan remains blocked/not configured until a real key is available, and future requests use LegiScan's `key=` query parameter.
+
 ## Verification
 
 Run:

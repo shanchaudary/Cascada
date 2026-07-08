@@ -190,7 +190,7 @@ describe("Federal Register data-source credentials", () => {
         "conditions[agencies][]": ["food-and-drug-administration"],
         "fields[]": ["document_number", "title", "type"],
       },
-      timeoutMs: 15000,
+      timeoutMs: 5000,
     });
   });
 

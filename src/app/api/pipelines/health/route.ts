@@ -3,12 +3,15 @@
 
 import { NextResponse } from "next/server";
 import { pipelineOrchestrator } from "@/lib/pipelines/orchestrator";
+import { requirePipelineAccess } from "@/lib/api/pipeline-auth";
+import { AuthenticationError, AuthorizationError } from "@/lib/errors";
 
 // ============================================================================
 // GET /api/pipelines/health — Health check all pipeline connections
 // ============================================================================
 export async function GET() {
   try {
+    await requirePipelineAccess("COMPLIANCE");
     const healthResults = await pipelineOrchestrator.healthCheckAll();
 
     const pipelines: Record<string, { healthy: boolean; checkedAt: string }> = {};
@@ -30,6 +33,20 @@ export async function GET() {
       },
     }, { status: allHealthy ? 200 : 503 });
   } catch (error) {
+    if (error instanceof AuthenticationError) {
+      return NextResponse.json(
+        { error: { code: error.code, message: error.message } },
+        { status: 401 },
+      );
+    }
+
+    if (error instanceof AuthorizationError) {
+      return NextResponse.json(
+        { error: { code: error.code, message: error.message } },
+        { status: 403 },
+      );
+    }
+
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(
       { error: { code: "INTERNAL_ERROR", message } },
