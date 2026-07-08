@@ -113,13 +113,14 @@ npx prisma migrate deploy
 Local regulatory pipeline credentials go in `.env`, copied from `.env.example`:
 
 ```text
-LEGISCAN_API_KEY=
-OPENFDA_API_KEY=
-FEDERAL_REGISTER_API_KEY=
-USDA_API_KEY=
+LEGISCAN_API_KEY=     # required; use blank or requested until issued
+OPENFDA_API_KEY=      # optional; improves openFDA rate limits
+USDA_API_KEY=         # required for USDA FoodData Central
+# Federal Register uses a public API and does not require an API key.
+# Legacy FEDERAL_REGISTER_API_KEY values are ignored if present.
 ```
 
-These are platform-level data-source secrets. They are not tenant settings and should not be entered into normal frontend-accessible settings screens. For production, configure them in the hosting platform or secret manager used to run Cascada, such as deployment environment variables, Docker secrets, or Kubernetes secrets, then restart the app and background workers that run regulatory pipelines.
+These are platform-level data-source credentials. Federal Register is the exception: FederalRegister.gov APIs are public and require no key. The other credentials are not tenant settings and should not be entered into normal frontend-accessible settings screens. For production, configure them in the hosting platform or secret manager used to run Cascada, such as deployment environment variables, Docker secrets, or Kubernetes secrets, then restart the app and background workers that run regulatory pipelines.
 
 The app must never expose the secret values to the browser. Admin UI may show configured/missing status, masked labels, test results, and last successful sync timestamps, but secret value storage and rotation should be handled by the platform secret store.
 

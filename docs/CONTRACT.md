@@ -18,32 +18,32 @@
 
 ## 2. Tech Stack (Frozen)
 
-| Layer            | Technology                        | Version                                       | Rationale                                |
-| ---------------- | --------------------------------- | --------------------------------------------- | ---------------------------------------- |
-| Runtime          | Node.js                           | 20 LTS                                        | LTS stability, Temporal SDK support      |
-| Framework        | Next.js                           | 15.x (App Router; lockfile currently 15.5.20) | API routes + frontend in one deploy      |
-| Language         | TypeScript                        | 5.x strict mode                               | No `any`, no escape hatches              |
-| ORM              | Prisma                            | 6.x (lockfile currently 6.19.3)               | Type-safe DB access, migrations          |
-| Database         | PostgreSQL                        | 16                                            | Primary data store                       |
-| Graph Engine     | Apache AGE                        | PG extension                                  | Graph queries inside PostgreSQL          |
-| Cache/Queue      | Redis                             | 7.x                                           | Job queues, session cache, rate limiting |
-| Workflow         | Temporal.io                       | 1.24+                                         | Durable workflow execution               |
-| LLM - Primary    | OpenAI                            | GPT-4o / GPT-4o-mini                          | Structured output, tool calling          |
-| LLM - Fallback   | Anthropic                         | Claude 3.5 Sonnet                             | Backup when OpenAI fails                 |
-| LLM SDK          | Vercel AI SDK                     | 4.x                                           | Unified interface for multiple providers |
-| Frontend         | React 19 + Tailwind 4 + shadcn/ui | Latest                                        | Component library                        |
-| Charts           | Recharts                          | 2.x                                           | Dashboard visualizations                 |
-| Auth             | NextAuth.js                       | 5.x (Auth.js)                                 | JWT + session management                 |
-| Email            | Resend                            | API                                           | Transactional email                      |
-| PDF              | @react-pdf/renderer               | 4.x                                           | Diagnostic report generation             |
-| Logging          | Pino                              | 9.x                                           | Structured JSON logging                  |
-| Validation       | Zod                               | 3.x                                           | Runtime type validation                  |
+| Layer            | Technology                        | Version                                       | Rationale                                                     |
+| ---------------- | --------------------------------- | --------------------------------------------- | ------------------------------------------------------------- |
+| Runtime          | Node.js                           | 20 LTS                                        | LTS stability, Temporal SDK support                           |
+| Framework        | Next.js                           | 15.x (App Router; lockfile currently 15.5.20) | API routes + frontend in one deploy                           |
+| Language         | TypeScript                        | 5.x strict mode                               | No `any`, no escape hatches                                   |
+| ORM              | Prisma                            | 6.x (lockfile currently 6.19.3)               | Type-safe DB access, migrations                               |
+| Database         | PostgreSQL                        | 16                                            | Primary data store                                            |
+| Graph Engine     | Apache AGE                        | PG extension                                  | Graph queries inside PostgreSQL                               |
+| Cache/Queue      | Redis                             | 7.x                                           | Job queues, session cache, rate limiting                      |
+| Workflow         | Temporal.io                       | 1.24+                                         | Durable workflow execution                                    |
+| LLM - Primary    | OpenAI                            | GPT-4o / GPT-4o-mini                          | Structured output, tool calling                               |
+| LLM - Fallback   | Anthropic                         | Claude 3.5 Sonnet                             | Backup when OpenAI fails                                      |
+| LLM SDK          | Vercel AI SDK                     | 4.x                                           | Unified interface for multiple providers                      |
+| Frontend         | React 19 + Tailwind 4 + shadcn/ui | Latest                                        | Component library                                             |
+| Charts           | Recharts                          | 2.x                                           | Dashboard visualizations                                      |
+| Auth             | NextAuth.js                       | 5.x (Auth.js)                                 | JWT + session management                                      |
+| Email            | Resend                            | API                                           | Transactional email                                           |
+| PDF              | @react-pdf/renderer               | 4.x                                           | Diagnostic report generation                                  |
+| Logging          | Pino                              | 9.x                                           | Structured JSON logging                                       |
+| Validation       | Zod                               | 3.x                                           | Runtime type validation                                       |
 | Testing          | Vitest                            | Latest                                        | Unit/regression tests; Playwright is not currently configured |
-| Containerization | Docker + Docker Compose           | Latest                                        | Local dev and deployment                 |
-| Orchestration    | Kubernetes                        | 1.29+                                         | Production deployment                    |
-| IaC              | Terraform                         | 1.7+                                          | Cloud infrastructure                     |
-| CI/CD            | GitHub Actions                    | N/A                                           | Automated pipelines                      |
-| Monitoring       | Prometheus + Grafana              | Latest                                        | Metrics and dashboards                   |
+| Containerization | Docker + Docker Compose           | Latest                                        | Local dev and deployment                                      |
+| Orchestration    | Kubernetes                        | 1.29+                                         | Production deployment                                         |
+| IaC              | Terraform                         | 1.7+                                          | Cloud infrastructure                                          |
+| CI/CD            | GitHub Actions                    | N/A                                           | Automated pipelines                                           |
+| Monitoring       | Prometheus + Grafana              | Latest                                        | Metrics and dashboards                                        |
 
 ---
 
@@ -1183,7 +1183,9 @@ ANTHROPIC_API_KEY=sk-ant-...
 # Data Pipelines
 LEGISCAN_API_KEY=<from-legiscan>
 OPENFDA_API_KEY=<optional-increases-rate-limit>
-FEDERAL_REGISTER_API_KEY=<optional>
+USDA_API_KEY=<from-usda-fooddata-central>
+# Federal Register uses a public API and does not require an API key.
+# Legacy FEDERAL_REGISTER_API_KEY values are ignored if present.
 
 # ERP - NetSuite
 NETSUITE_ACCOUNT=

@@ -6,33 +6,17 @@ import { prisma } from "@/lib/db";
 import { AuthorizationError, AuthenticationError } from "@/lib/errors";
 import { pipelineOrchestrator } from "@/lib/pipelines/orchestrator";
 import { PIPELINE_TYPES, type PipelineType } from "@/lib/pipelines/types";
-
-interface DataSourceDefinition {
-  type: PipelineType;
-  label: string;
-  envVar: string;
-  required: boolean;
-}
-
-const DATA_SOURCES: DataSourceDefinition[] = [
-  { type: "legiscan", label: "LegiScan", envVar: "LEGISCAN_API_KEY", required: true },
-  { type: "openfda", label: "openFDA", envVar: "OPENFDA_API_KEY", required: false },
-  {
-    type: "federal_register",
-    label: "Federal Register",
-    envVar: "FEDERAL_REGISTER_API_KEY",
-    required: false,
-  },
-  { type: "usda", label: "USDA FoodData Central", envVar: "USDA_API_KEY", required: false },
-];
-
-function isConfigured(envVar: string): boolean {
-  return Boolean(process.env[envVar]?.trim());
-}
+import {
+  DATA_SOURCE_DEFINITIONS,
+  buildDataSourceStatus,
+  getCredentialStatus,
+  getDataSourceDefinition,
+  shouldBlockDataSourceTest,
+} from "@/lib/settings/data-sources";
 
 function validatePipelineType(value: unknown): PipelineType | null {
   return typeof value === "string" && PIPELINE_TYPES.includes(value as PipelineType)
-    ? value as PipelineType
+    ? (value as PipelineType)
     : null;
 }
 
@@ -74,16 +58,13 @@ export async function GET() {
     await requirePlatformAdmin();
 
     const dataSources = await Promise.all(
-      DATA_SOURCES.map(async (source) => ({
-        type: source.type,
-        label: source.label,
-        envVar: source.envVar,
-        required: source.required,
-        configured: isConfigured(source.envVar),
-        maskedValue: isConfigured(source.envVar) ? "Configured" : "Missing",
-        lastSuccessfulSyncAt: await lastSuccessfulSyncAt(source.type),
-        lastError: await lastError(source.type),
-      })),
+      DATA_SOURCE_DEFINITIONS.map(async (source) =>
+        buildDataSourceStatus(
+          source,
+          await lastSuccessfulSyncAt(source.type),
+          await lastError(source.type),
+        ),
+      ),
     );
 
     return NextResponse.json({ dataSources });
@@ -103,10 +84,7 @@ export async function GET() {
     }
 
     const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json(
-      { error: { code: "INTERNAL_ERROR", message } },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: { code: "INTERNAL_ERROR", message } }, { status: 500 });
   }
 }
 
@@ -114,9 +92,9 @@ export async function POST(request: NextRequest) {
   try {
     await requirePlatformAdmin();
 
-    const body = await request.json().catch(() => ({})) as Record<string, unknown>;
+    const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
     const type = validatePipelineType(body["type"]);
-    const source = DATA_SOURCES.find((item) => item.type === type);
+    const source = type ? getDataSourceDefinition(type) : undefined;
 
     if (!type || !source) {
       return NextResponse.json(
@@ -125,12 +103,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!isConfigured(source.envVar)) {
+    const credentialStatus = getCredentialStatus(source);
+    if (shouldBlockDataSourceTest(source, credentialStatus)) {
       return NextResponse.json({
         type,
         healthy: false,
         checkedAt: new Date().toISOString(),
-        message: `${source.envVar} is not configured`,
+        message: source.envVar
+          ? `${source.envVar} is ${credentialStatus.maskedValue.toLowerCase()}`
+          : "Credential is not configured",
       });
     }
 
@@ -157,9 +138,6 @@ export async function POST(request: NextRequest) {
     }
 
     const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json(
-      { error: { code: "INTERNAL_ERROR", message } },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: { code: "INTERNAL_ERROR", message } }, { status: 500 });
   }
 }

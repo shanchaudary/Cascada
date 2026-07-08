@@ -29,39 +29,39 @@ export interface FederalRegisterDocument {
   document_number: string;
   title: string;
   type: FederalRegisterDocumentType;
-  abstract: string;
-  publication_date: string;
-  effective_date: string | null;
-  action: string;
-  agencies: FederalRegisterAgency[];
-  topics: string[];
-  subjects: string[];
-  citation: string;
-  html_url: string;
-  pdf_url: string;
-  full_text_xml_url: string | null;
-  raw_text_url: string | null;
-  body_html: string | null;
-  body_text: string | null;
-  excerpts: string | null;
-  comments_close_on: string | null;
-  significant: boolean;
-  executive_order_number: string | null;
-  regulatory_plan: boolean;
-  rin: string | null;
-  docket_id: string | null;
-  docket_type: string | null;
-  document_id: string;
-  end_page: number | null;
-  start_page: number | null;
-  volume: number | null;
- _subtype: string | null;
-  subtypes: string[];
-  toc_doc: string | null;
-  toc_subject: string | null;
-  presidential_document_type: string | null;
-  publication_date_override: string | null;
-  filing_date_override: string | null;
+  abstract?: string | null;
+  publication_date?: string | null;
+  effective_date?: string | null;
+  action?: string | null;
+  agencies?: FederalRegisterAgency[];
+  topics?: string[] | null;
+  subjects?: string[] | null;
+  citation?: string | null;
+  html_url?: string | null;
+  pdf_url?: string | null;
+  full_text_xml_url?: string | null;
+  raw_text_url?: string | null;
+  body_html?: string | null;
+  body_text?: string | null;
+  excerpts?: string | null;
+  comments_close_on?: string | null;
+  significant?: boolean;
+  executive_order_number?: string | null;
+  regulatory_plan?: boolean;
+  rin?: string | null;
+  docket_id?: string | null;
+  docket_type?: string | null;
+  document_id?: string;
+  end_page?: number | null;
+  start_page?: number | null;
+  volume?: number | null;
+  _subtype?: string | null;
+  subtypes?: string[];
+  toc_doc?: string | null;
+  toc_subject?: string | null;
+  presidential_document_type?: string | null;
+  publication_date_override?: string | null;
+  filing_date_override?: string | null;
 }
 
 export type FederalRegisterDocumentType =
@@ -70,14 +70,21 @@ export type FederalRegisterDocumentType =
   | "NOTICE"
   | "PRESDOCU"
   | "CORRECTION"
-  | "PRORULE";
+  | "PRORULE"
+  | "Rule"
+  | "Proposed Rule"
+  | "Notice"
+  | "Presidential Document"
+  | "Correction";
 
 // ============================================================================
 // Agency
 // ============================================================================
 export interface FederalRegisterAgency {
   name: string;
-  short_name: string;
+  raw_name?: string;
+  short_name?: string;
+  slug?: string;
   url: string;
   json_url: string;
   parent_id: number | null;
@@ -119,8 +126,15 @@ export interface FederalRegisterSearchParams {
 }
 
 // ============================================================================
-// FDA-related agencies tracked by Cascada
+// Food-relevant agencies tracked by Cascada for Federal Register ingestion.
 // ============================================================================
+export const FEDERAL_REGISTER_FOOD_AGENCIES: readonly string[] = [
+  "food-and-drug-administration",
+  "food-and-nutrition-service",
+  "agricultural-marketing-service",
+  "food-safety-and-inspection-service",
+] as const;
+
 export const FDA_RELATED_AGENCIES: readonly string[] = [
   "food-and-drug-administration",
   "food-safety-and-inspection-service",
@@ -204,6 +218,24 @@ export const FEDERAL_REGISTER_FOOD_CONDITIONS: readonly FederalRegisterSearchPar
     per_page: 100,
   },
   {
+    agencies: ["food-safety-and-inspection-service"],
+    conditions: { keyword: "labeling" },
+    order: "newest",
+    per_page: 100,
+  },
+  {
+    agencies: ["food-and-nutrition-service"],
+    conditions: { keyword: "nutrition" },
+    order: "newest",
+    per_page: 100,
+  },
+  {
+    agencies: ["agricultural-marketing-service"],
+    conditions: { keyword: "food" },
+    order: "newest",
+    per_page: 100,
+  },
+  {
     agencies: ["food-and-drug-administration"],
     conditions: { keyword: "PFAS" },
     order: "newest",
@@ -227,7 +259,10 @@ export const FEDERAL_REGISTER_FOOD_CONDITIONS: readonly FederalRegisterSearchPar
 // Document type to source type mapping
 // ============================================================================
 export const FR_DOC_TYPE_TO_SOURCE_TYPE: Readonly<
-  Record<FederalRegisterDocumentType, "FDA_RULE" | "FDA_PROPOSED_RULE" | "FDA_GUIDANCE" | "FEDERAL_REGISTER_NOTICE">
+  Record<
+    FederalRegisterCanonicalDocumentType,
+    "FDA_RULE" | "FDA_PROPOSED_RULE" | "FDA_GUIDANCE" | "FEDERAL_REGISTER_NOTICE"
+  >
 > = {
   RULE: "FDA_RULE",
   "PROPOSED RULE": "FDA_PROPOSED_RULE",
@@ -236,3 +271,6 @@ export const FR_DOC_TYPE_TO_SOURCE_TYPE: Readonly<
   CORRECTION: "FDA_RULE",
   PRORULE: "FDA_PROPOSED_RULE",
 } as const;
+
+export type FederalRegisterCanonicalDocumentType =
+  "RULE" | "PROPOSED RULE" | "NOTICE" | "PRESDOCU" | "CORRECTION" | "PRORULE";

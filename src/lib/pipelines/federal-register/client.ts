@@ -10,11 +10,10 @@
 // 4. Deduplicate against existing records
 // 5. Persist new/updated records
 //
-// Rate limit: 1000 requests/hour (with API key).
+// FederalRegister.gov APIs are public and do not require API keys.
 
 import { BasePipelineClient } from "../base-client";
 import { PIPELINE_CONFIG } from "@/lib/constants";
-import { PipelineError } from "@/lib/errors";
 import { createPipelineLogger } from "@/lib/logger";
 import { toDateString } from "@/utils/dates";
 import type {
@@ -29,8 +28,31 @@ import type {
   FederalRegisterSearchParams,
   FederalRegisterDocumentType,
 } from "./types";
-import { FEDERAL_REGISTER_FOOD_CONDITIONS } from "./types";
+import { FEDERAL_REGISTER_FOOD_AGENCIES, FEDERAL_REGISTER_FOOD_CONDITIONS } from "./types";
 import { transformFederalRegisterDocument } from "./transforms";
+
+const FEDERAL_REGISTER_DOCUMENT_LIST_FIELDS = [
+  "document_number",
+  "title",
+  "type",
+  "abstract",
+  "publication_date",
+  "agencies",
+  "excerpts",
+  "html_url",
+  "pdf_url",
+] as const;
+
+function toFederalRegisterTypeFilter(type: FederalRegisterDocumentType): string {
+  const normalizedType = type.toUpperCase();
+  if (normalizedType === "PROPOSED RULE") return "PRORULE";
+  if (normalizedType === "PRESIDENTIAL DOCUMENT") return "PRESDOCU";
+  return normalizedType;
+}
+
+function searchTermFor(params: FederalRegisterSearchParams): string | undefined {
+  return params.conditions?.term ?? params.conditions?.keyword ?? params.conditions?.full_text;
+}
 
 // ============================================================================
 // Pipeline configuration
@@ -39,7 +61,7 @@ const FEDERAL_REGISTER_CONFIG: PipelineSourceConfig = {
   type: "federal_register",
   name: "Federal Register",
   baseUrl: PIPELINE_CONFIG.FEDERAL_REGISTER.baseUrl,
-  apiKeyEnvVar: "FEDERAL_REGISTER_API_KEY",
+  apiKeyEnvVar: "",
   apiKeyRequired: false,
   rateLimit: {
     maxRequests: PIPELINE_CONFIG.FEDERAL_REGISTER.rateLimitPerHour,
@@ -77,10 +99,7 @@ export class FederalRegisterClient extends BasePipelineClient<
   // Abstract method implementations
   // ==========================================================================
 
-  protected buildFetchRequest(
-    cursor: string | null,
-    limit: number
-  ): PipelineRequestOptions {
+  protected buildFetchRequest(cursor: string | null, limit: number): PipelineRequestOptions {
     // Initialize search conditions on first call
     if (!cursor) {
       this.searchConditions = [...FEDERAL_REGISTER_FOOD_CONDITIONS];
@@ -97,7 +116,7 @@ export class FederalRegisterClient extends BasePipelineClient<
       return { path: "documents.json", params: { per_page: 0 } };
     }
 
-    const params: Record<string, string | number> = {
+    const params: NonNullable<PipelineRequestOptions["params"]> = {
       per_page: Math.min(limit, 100),
       page: this.currentPage,
       order: condition.order ?? "newest",
@@ -105,52 +124,29 @@ export class FederalRegisterClient extends BasePipelineClient<
 
     // Add document type filter
     if (condition.type && condition.type.length > 0) {
-      params["type[]"] = condition.type.join(",");
+      params["conditions[type][]"] = condition.type.map(toFederalRegisterTypeFilter);
     }
 
     // Add agency filter
     if (condition.agencies && condition.agencies.length > 0) {
-      params["agencies[]"] = condition.agencies.join(",");
+      params["conditions[agencies][]"] = condition.agencies;
     }
 
     // Add search conditions
-    if (condition.conditions?.keyword) {
-      params["conditions[keyword]"] = condition.conditions.keyword;
-    }
-    if (condition.conditions?.full_text) {
-      params["conditions[full_text]"] = condition.conditions.full_text;
+    const term = searchTermFor(condition);
+    if (term) {
+      params["conditions[term]"] = term;
     }
 
     // Add date range
     if (condition.publication_date?.gte) {
-      params["publication_date[gte]"] = condition.publication_date.gte;
+      params["conditions[publication_date][gte]"] = condition.publication_date.gte;
     }
     if (condition.publication_date?.lte) {
-      params["publication_date[lte]"] = condition.publication_date.lte;
+      params["conditions[publication_date][lte]"] = condition.publication_date.lte;
     }
 
-    // Request full text and metadata
-    params["fields[]"] = [
-      "document_number",
-      "title",
-      "type",
-      "abstract",
-      "publication_date",
-      "effective_date",
-      "action",
-      "agencies",
-      "subjects",
-      "topics",
-      "citation",
-      "html_url",
-      "pdf_url",
-      "body_html",
-      "body_text",
-      "excerpts",
-      "comments_close_on",
-      "significant",
-      "rin",
-    ].join(",");
+    params["fields[]"] = [...FEDERAL_REGISTER_DOCUMENT_LIST_FIELDS];
 
     return {
       path: "documents.json",
@@ -161,7 +157,7 @@ export class FederalRegisterClient extends BasePipelineClient<
   protected parseFetchResponse(
     responseData: unknown,
     _statusCode: number,
-    _headers: Record<string, string>
+    _headers: Record<string, string>,
   ): PipelineFetchResult<FederalRegisterDocument> {
     const apiResponse = responseData as FederalRegisterSearchResponse;
 
@@ -185,8 +181,7 @@ export class FederalRegisterClient extends BasePipelineClient<
     }
 
     const isLastPage =
-      isConditionComplete &&
-      this.currentConditionIndex >= this.searchConditions.length - 1;
+      isConditionComplete && this.currentConditionIndex >= this.searchConditions.length - 1;
 
     return {
       records: results,
@@ -226,29 +221,31 @@ export class FederalRegisterClient extends BasePipelineClient<
    * Low-level API for custom searches.
    */
   async searchDocuments(
-    params: FederalRegisterSearchParams
+    params: FederalRegisterSearchParams,
   ): Promise<FederalRegisterSearchResponse> {
-    const requestParams: Record<string, string | number> = {
+    const requestParams: NonNullable<PipelineRequestOptions["params"]> = {
       per_page: params.per_page ?? 100,
       page: params.page ?? 1,
       order: params.order ?? "newest",
     };
 
     if (params.type && params.type.length > 0) {
-      requestParams["type[]"] = params.type.join(",");
+      requestParams["conditions[type][]"] = params.type.map(toFederalRegisterTypeFilter);
     }
     if (params.agencies && params.agencies.length > 0) {
-      requestParams["agencies[]"] = params.agencies.join(",");
+      requestParams["conditions[agencies][]"] = params.agencies;
     }
-    if (params.conditions?.keyword) {
-      requestParams["conditions[keyword]"] = params.conditions.keyword;
+    const term = searchTermFor(params);
+    if (term) {
+      requestParams["conditions[term]"] = term;
     }
     if (params.publication_date?.gte) {
-      requestParams["publication_date[gte]"] = params.publication_date.gte;
+      requestParams["conditions[publication_date][gte]"] = params.publication_date.gte;
     }
     if (params.publication_date?.lte) {
-      requestParams["publication_date[lte]"] = params.publication_date.lte;
+      requestParams["conditions[publication_date][lte]"] = params.publication_date.lte;
     }
+    requestParams["fields[]"] = params.fields ?? [...FEDERAL_REGISTER_DOCUMENT_LIST_FIELDS];
 
     const response = await this.request<FederalRegisterSearchResponse>({
       path: "documents.json",
@@ -259,12 +256,13 @@ export class FederalRegisterClient extends BasePipelineClient<
   }
 
   /**
-   * Fetch recent FDA rules and proposed rules.
+   * Fetch recent food-relevant Federal Register rules, proposed rules, and notices.
    * Only fetches documents published since the given date.
    */
-  async fetchRecentFdaDocuments(
+  async fetchRecentFoodDocuments(
     sinceDate: string,
-    documentTypes: FederalRegisterDocumentType[] = ["RULE", "PROPOSED RULE", "NOTICE"]
+    documentTypes: FederalRegisterDocumentType[] = ["RULE", "PROPOSED RULE", "NOTICE"],
+    agencies: readonly string[] = FEDERAL_REGISTER_FOOD_AGENCIES,
   ): Promise<FederalRegisterDocument[]> {
     const allResults: FederalRegisterDocument[] = [];
     let page = 1;
@@ -272,7 +270,7 @@ export class FederalRegisterClient extends BasePipelineClient<
 
     while (hasMore) {
       const response = await this.searchDocuments({
-        agencies: ["food-and-drug-administration"],
+        agencies: [...agencies],
         type: documentTypes,
         publication_date: {
           gte: sinceDate,
@@ -297,6 +295,18 @@ export class FederalRegisterClient extends BasePipelineClient<
   }
 
   /**
+   * Backward-compatible FDA-only helper for callers that explicitly need it.
+   */
+  async fetchRecentFdaDocuments(
+    sinceDate: string,
+    documentTypes: FederalRegisterDocumentType[] = ["RULE", "PROPOSED RULE", "NOTICE"],
+  ): Promise<FederalRegisterDocument[]> {
+    return this.fetchRecentFoodDocuments(sinceDate, documentTypes, [
+      "food-and-drug-administration",
+    ]);
+  }
+
+  /**
    * Execute the full Federal Register pipeline.
    * Fetches from all configured search conditions.
    */
@@ -318,9 +328,9 @@ export class FederalRegisterClient extends BasePipelineClient<
 
     pipelineLogger.info({ sinceDate: dateFilter }, "Starting full Federal Register pipeline");
 
-    // Phase 1: Fetch recent FDA documents with date filter
+    // Phase 1: Fetch recent food-agency documents with date filter
     try {
-      const documents = await this.fetchRecentFdaDocuments(dateFilter);
+      const documents = await this.fetchRecentFoodDocuments(dateFilter);
       documentsFetched += documents.length;
 
       for (const doc of documents) {
@@ -410,7 +420,7 @@ export class FederalRegisterClient extends BasePipelineClient<
         const errMsg = err instanceof Error ? err.message : String(err);
         pipelineLogger.warn(
           { conditionIndex: i, error: errMsg },
-          "Search condition failed, skipping"
+          "Search condition failed, skipping",
         );
       }
     }
@@ -423,7 +433,7 @@ export class FederalRegisterClient extends BasePipelineClient<
         skipped,
         errors: errors.length,
       },
-      "Full Federal Register pipeline completed"
+      "Full Federal Register pipeline completed",
     );
 
     return {
@@ -451,24 +461,47 @@ export class FederalRegisterClient extends BasePipelineClient<
   }
 
   /**
+   * FederalRegister.gov is a public API. Use a tiny document search to verify
+   * connectivity without credential checks or detail-only fields.
+   */
+  override async healthCheck(): Promise<boolean> {
+    try {
+      const response = await this.request<FederalRegisterSearchResponse>({
+        path: "documents.json",
+        params: {
+          per_page: 1,
+          "conditions[term]": "food",
+          "conditions[agencies][]": ["food-and-drug-administration"],
+          "fields[]": ["document_number", "title", "type"],
+        },
+        timeoutMs: 15000,
+      });
+
+      return response.statusCode >= 200 && response.statusCode < 300;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Override buildUrl to handle Federal Register's URL structure.
-   * API key is passed as a query parameter.
+   * FederalRegister.gov APIs do not require API keys.
    */
   protected override buildUrl(options: PipelineRequestOptions): string {
     const baseUrl = this.config.baseUrl.replace(/\/$/, "");
     const path = options.path.startsWith("/") ? options.path.slice(1) : options.path;
     const url = new URL(`${baseUrl}/${path}`);
 
-    // Add API key
-    const apiKey = process.env[this.config.apiKeyEnvVar];
-    if (apiKey) {
-      url.searchParams.set("api_key", apiKey);
-    }
-
     // Add query parameters
     if (options.params) {
       for (const [key, value] of Object.entries(options.params)) {
-        url.searchParams.set(key, String(value));
+        if (Array.isArray(value)) {
+          for (const item of value) {
+            url.searchParams.append(key, String(item));
+          }
+        } else {
+          url.searchParams.set(key, String(value));
+        }
       }
     }
 

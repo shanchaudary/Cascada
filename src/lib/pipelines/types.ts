@@ -259,7 +259,7 @@ export interface PipelineRequestOptions {
   /** URL path (appended to base URL) */
   path: string;
   /** Query parameters */
-  params?: Record<string, string | number | boolean>;
+  params?: Record<string, string | number | boolean | ReadonlyArray<string | number | boolean>>;
   /** HTTP method */
   method?: "GET" | "POST";
   /** Request body (for POST) */

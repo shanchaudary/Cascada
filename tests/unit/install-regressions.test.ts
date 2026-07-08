@@ -71,4 +71,14 @@ describe("local install regressions", () => {
       expect(fs.existsSync(routeFileForHref(href))).toBe(true);
     }
   });
+
+  it("documents Federal Register as a public no-key API instead of a configured secret", () => {
+    const envExample = read(".env.example");
+    const readme = read("README.md");
+
+    expect(envExample).not.toMatch(/^FEDERAL_REGISTER_API_KEY=/m);
+    expect(envExample).toContain("Federal Register uses a public no-key API");
+    expect(readme).toContain("Federal Register uses a public API and does not require an API key");
+    expect(readme).toContain("Legacy FEDERAL_REGISTER_API_KEY values are ignored");
+  });
 });

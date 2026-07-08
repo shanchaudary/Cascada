@@ -54,14 +54,14 @@ export abstract class BasePipelineClient<TRaw, TTransformed extends TransformedR
   /** Build the request options for fetching a page of records */
   protected abstract buildFetchRequest(
     cursor: string | null,
-    limit: number
+    limit: number,
   ): PipelineRequestOptions;
 
   /** Parse the raw HTTP response into our typed FetchResult */
   protected abstract parseFetchResponse(
     responseData: unknown,
     statusCode: number,
-    headers: Record<string, string>
+    headers: Record<string, string>,
   ): PipelineFetchResult<TRaw>;
 
   /** Transform a single raw API record into our internal format */
@@ -76,7 +76,7 @@ export abstract class BasePipelineClient<TRaw, TTransformed extends TransformedR
    * This is the ONLY way pipeline clients make HTTP requests.
    */
   protected async request<TResponseBody>(
-    options: PipelineRequestOptions
+    options: PipelineRequestOptions,
   ): Promise<PipelineResponse<TResponseBody>> {
     await this.enforceRateLimit();
 
@@ -116,7 +116,7 @@ export abstract class BasePipelineClient<TRaw, TTransformed extends TransformedR
           const pipelineLogger = createPipelineLogger(this.pipelineType);
           pipelineLogger.warn(
             { waitMs, attempt, remaining: rateLimitInfo.remaining },
-            "API rate limit hit, waiting before retry"
+            "API rate limit hit, waiting before retry",
           );
 
           await this.sleep(waitMs);
@@ -125,16 +125,14 @@ export abstract class BasePipelineClient<TRaw, TTransformed extends TransformedR
 
         // Handle retryable server errors
         if (this.retryConfig.retryableStatusCodes.includes(response.status)) {
-          lastError = new Error(
-            `HTTP ${response.status}: ${response.statusText}`
-          );
+          lastError = new Error(`HTTP ${response.status}: ${response.statusText}`);
 
           if (attempt <= this.retryConfig.maxRetries) {
             const delay = this.calculateRetryDelay(attempt);
             const pipelineLogger = createPipelineLogger(this.pipelineType);
             pipelineLogger.warn(
               { status: response.status, attempt, delayMs: delay, url: options.path },
-              "Retryable HTTP error, backing off"
+              "Retryable HTTP error, backing off",
             );
             await this.sleep(delay);
             continue;
@@ -144,11 +142,15 @@ export abstract class BasePipelineClient<TRaw, TTransformed extends TransformedR
         // Handle non-retryable errors
         if (!response.ok) {
           const body = await response.text().catch(() => "unable to read body");
-          throw new PipelineError(this.pipelineType, `HTTP ${response.status}: ${response.statusText} — ${body}`, {
-            statusCode: response.status,
-            url: options.path,
-            attempt,
-          });
+          throw new PipelineError(
+            this.pipelineType,
+            `HTTP ${response.status}: ${response.statusText} — ${body}`,
+            {
+              statusCode: response.status,
+              url: options.path,
+              attempt,
+            },
+          );
         }
 
         // Parse successful response
@@ -183,7 +185,7 @@ export abstract class BasePipelineClient<TRaw, TTransformed extends TransformedR
           const pipelineLogger = createPipelineLogger(this.pipelineType);
           pipelineLogger.warn(
             { error: lastError.message, attempt, delayMs: delay, url: options.path },
-            "Request failed, backing off"
+            "Request failed, backing off",
           );
           await this.sleep(delay);
         }
@@ -193,7 +195,7 @@ export abstract class BasePipelineClient<TRaw, TTransformed extends TransformedR
     throw new PipelineError(
       this.pipelineType,
       `All ${attempt} attempts failed. Last error: ${lastError?.message ?? "unknown"}`,
-      { url: options.path, attempts: attempt }
+      { url: options.path, attempts: attempt },
     );
   }
 
@@ -212,7 +214,7 @@ export abstract class BasePipelineClient<TRaw, TTransformed extends TransformedR
 
     // Remove timestamps outside the current window
     this.rateLimitState.requestTimestamps = this.rateLimitState.requestTimestamps.filter(
-      (ts) => ts > windowStart
+      (ts) => ts > windowStart,
     );
 
     // If we've hit the limit, wait until the oldest request exits the window
@@ -223,8 +225,12 @@ export abstract class BasePipelineClient<TRaw, TTransformed extends TransformedR
       if (waitMs > 0) {
         const pipelineLogger = createPipelineLogger(this.pipelineType);
         pipelineLogger.debug(
-          { waitMs, currentRequests: this.rateLimitState.requestTimestamps.length, maxRequests: config.maxRequests },
-          "Rate limit reached, waiting"
+          {
+            waitMs,
+            currentRequests: this.rateLimitState.requestTimestamps.length,
+            maxRequests: config.maxRequests,
+          },
+          "Rate limit reached, waiting",
         );
         await this.sleep(waitMs);
       }
@@ -273,7 +279,7 @@ export abstract class BasePipelineClient<TRaw, TTransformed extends TransformedR
 
     // Compare content hashes to detect changes
     const existingHash = this.computeContentHash(
-      existing.rawApiResponse as Record<string, unknown>
+      existing.rawApiResponse as Record<string, unknown>,
     );
     const hasChanged = existingHash !== contentHash;
 
@@ -305,7 +311,7 @@ export abstract class BasePipelineClient<TRaw, TTransformed extends TransformedR
    */
   protected isRelevantToFoodManufacturing(
     textFields: string[],
-    keywords: readonly string[]
+    keywords: readonly string[],
   ): { isRelevant: boolean; matchedKeywords: string[] } {
     const combinedText = textFields.join(" ").toLowerCase();
     const matchedKeywords: string[] = [];
@@ -332,10 +338,7 @@ export abstract class BasePipelineClient<TRaw, TTransformed extends TransformedR
    * Persist a transformed record to the database.
    * Handles both creation and updates based on deduplication results.
    */
-  async persist(
-    transformed: TTransformed,
-    dedup: DeduplicationCheck
-  ): Promise<string> {
+  async persist(transformed: TTransformed, dedup: DeduplicationCheck): Promise<string> {
     if (!dedup.exists) {
       // Create new record
       const record = await prisma.regulatorySource.create({
@@ -439,7 +442,7 @@ export abstract class BasePipelineClient<TRaw, TTransformed extends TransformedR
           fetchResult = this.parseFetchResponse(
             response.data,
             response.statusCode,
-            response.headers
+            response.headers,
           );
         } catch (error) {
           const errMsg = error instanceof Error ? error.message : String(error);
@@ -461,8 +464,12 @@ export abstract class BasePipelineClient<TRaw, TTransformed extends TransformedR
 
         totalFetched += fetchResult.records.length;
         pipelineLogger.info(
-          { fetched: fetchResult.records.length, totalFetched, totalAvailable: fetchResult.totalAvailable },
-          "Page fetched"
+          {
+            fetched: fetchResult.records.length,
+            totalFetched,
+            totalAvailable: fetchResult.totalAvailable,
+          },
+          "Page fetched",
         );
 
         // Process each record
@@ -502,7 +509,7 @@ export abstract class BasePipelineClient<TRaw, TTransformed extends TransformedR
 
             pipelineLogger.error(
               { error: errMsg, recordIndex: context.recordsProcessed },
-              "Record processing failed"
+              "Record processing failed",
             );
 
             errors.push({
@@ -525,7 +532,7 @@ export abstract class BasePipelineClient<TRaw, TTransformed extends TransformedR
         ) {
           pipelineLogger.info(
             { processed: context.recordsProcessed, max: this.config.maxRecordsPerRun },
-            "Max records per run reached"
+            "Max records per run reached",
           );
           break;
         }
@@ -558,7 +565,7 @@ export abstract class BasePipelineClient<TRaw, TTransformed extends TransformedR
           duplicates: totalDuplicates,
           failed: context.recordsFailed,
         },
-        "Pipeline execution completed"
+        "Pipeline execution completed",
       );
 
       return {
@@ -601,7 +608,7 @@ export abstract class BasePipelineClient<TRaw, TTransformed extends TransformedR
           created: totalCreated,
           updated: totalUpdated,
         },
-        "Pipeline execution failed"
+        "Pipeline execution failed",
       );
 
       return {
@@ -666,7 +673,13 @@ export abstract class BasePipelineClient<TRaw, TTransformed extends TransformedR
     // Add query parameters
     if (options.params) {
       for (const [key, value] of Object.entries(options.params)) {
-        url.searchParams.set(key, String(value));
+        if (Array.isArray(value)) {
+          for (const item of value) {
+            url.searchParams.append(key, String(item));
+          }
+        } else {
+          url.searchParams.set(key, String(value));
+        }
       }
     }
 
@@ -715,9 +728,11 @@ export abstract class BasePipelineClient<TRaw, TTransformed extends TransformedR
    * Extract rate limit information from response headers.
    * Different APIs use different header names, so we check multiple patterns.
    */
-  protected extractRateLimitInfo(
-    headers: Headers
-  ): { remaining: number | null; resetAt: Date | null; limit: number | null } {
+  protected extractRateLimitInfo(headers: Headers): {
+    remaining: number | null;
+    resetAt: Date | null;
+    limit: number | null;
+  } {
     // Standard patterns across different APIs
     const remaining =
       headers.get("x-ratelimit-remaining") ??

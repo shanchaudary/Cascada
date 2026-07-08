@@ -8,6 +8,8 @@ import type { TransformedRegulatorySource } from "../types";
 import { FOOD_RELEVANCE_KEYWORDS } from "../types";
 import type {
   FederalRegisterDocument,
+  FederalRegisterAgency,
+  FederalRegisterCanonicalDocumentType,
   FederalRegisterDocumentType,
 } from "./types";
 import { FR_DOC_TYPE_TO_SOURCE_TYPE } from "./types";
@@ -26,29 +28,61 @@ export function parseFederalRegisterDate(dateStr: string | null | undefined): Da
   return isNaN(date.getTime()) ? null : date;
 }
 
+function normalizeFederalRegisterDocumentType(
+  docType: FederalRegisterDocumentType,
+): FederalRegisterCanonicalDocumentType {
+  const normalizedType = docType.toUpperCase();
+
+  if (normalizedType === "PROPOSED RULE") return "PROPOSED RULE";
+  if (normalizedType === "PRESIDENTIAL DOCUMENT") return "PRESDOCU";
+  if (normalizedType === "RULE") return "RULE";
+  if (normalizedType === "NOTICE") return "NOTICE";
+  if (normalizedType === "CORRECTION") return "CORRECTION";
+  if (normalizedType === "PRORULE") return "PRORULE";
+
+  return "NOTICE";
+}
+
+function agencySearchText(agency: FederalRegisterAgency): string {
+  return [agency.short_name, agency.slug, agency.name, agency.raw_name]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function agencyDisplayName(agency: FederalRegisterAgency): string {
+  return agency.short_name ?? agency.name ?? agency.slug ?? "Federal";
+}
+
+function documentUrl(doc: FederalRegisterDocument): string | null {
+  return doc.html_url ?? doc.pdf_url ?? null;
+}
+
 /**
  * Map a Federal Register document type to our SourceType enum.
  * FDA rules map to FDA_RULE, proposed rules to FDA_PROPOSED_RULE, etc.
  */
 export function mapDocumentTypeToSourceType(
   docType: FederalRegisterDocumentType,
-  agencies: Array<{ short_name: string }>
+  agencies: FederalRegisterAgency[] = [],
 ): SourceType {
+  const canonicalType = normalizeFederalRegisterDocumentType(docType);
+
   // Check if this is from an FDA-related agency
-  const isFda = agencies.some((a) =>
-    a.short_name.toLowerCase().includes("food and drug") ||
-    a.short_name.toLowerCase().includes("fda")
+  const isFda = agencies.some((agency) =>
+    agencySearchText(agency).includes("food and drug") ||
+    agencySearchText(agency).includes("fda")
   );
 
   if (isFda) {
-    return FR_DOC_TYPE_TO_SOURCE_TYPE[docType] ?? "FDA_RULE";
+    return FR_DOC_TYPE_TO_SOURCE_TYPE[canonicalType] ?? "FDA_RULE";
   }
 
   // Non-FDA federal documents
-  if (docType === "RULE" || docType === "CORRECTION") {
+  if (canonicalType === "RULE" || canonicalType === "CORRECTION") {
     return "FEDERAL_REGISTER_NOTICE";
   }
-  if (docType === "PROPOSED RULE" || docType === "PRORULE") {
+  if (canonicalType === "PROPOSED RULE" || canonicalType === "PRORULE") {
     return "FDA_PROPOSED_RULE";
   }
 
@@ -63,7 +97,7 @@ export function determineFederalRegisterStatus(
   docType: FederalRegisterDocumentType,
   effectiveDate: Date | null
 ): SourceStatus {
-  switch (docType) {
+  switch (normalizeFederalRegisterDocumentType(docType)) {
     case "RULE":
     case "CORRECTION":
       // Final rules with effective dates are active
@@ -95,12 +129,15 @@ interface FrRelevanceResult {
  * Examines title, abstract, subjects, and agency information.
  */
 function checkFederalRegisterRelevance(doc: FederalRegisterDocument): FrRelevanceResult {
+  const agencies = doc.agencies ?? [];
+  const subjects = doc.subjects ?? [];
+  const topics = doc.topics ?? [];
   const textFields = [
     doc.title,
     doc.abstract,
     doc.action,
-    ...(doc.subjects ?? []),
-    ...(doc.topics ?? []),
+    ...subjects,
+    ...topics,
     doc.excerpts ?? "",
   ].filter(Boolean);
 
@@ -114,17 +151,17 @@ function checkFederalRegisterRelevance(doc: FederalRegisterDocument): FrRelevanc
   }
 
   // FDA documents are always potentially relevant
-  const isFdaDoc = doc.agencies.some(
-    (a) =>
-      a.short_name.toLowerCase().includes("food and drug") ||
-      a.short_name.toLowerCase().includes("fda")
+  const isFdaDoc = agencies.some(
+    (agency) =>
+      agencySearchText(agency).includes("food and drug") ||
+      agencySearchText(agency).includes("fda")
   );
 
   // Food safety agency documents get a boost
-  const isFoodSafetyDoc = doc.agencies.some(
-    (a) =>
-      a.short_name.toLowerCase().includes("food safety") ||
-      a.short_name.toLowerCase().includes("agricultural marketing")
+  const isFoodSafetyDoc = agencies.some(
+    (agency) =>
+      agencySearchText(agency).includes("food safety") ||
+      agencySearchText(agency).includes("agricultural marketing")
   );
 
   let confidence = 0;
@@ -154,7 +191,8 @@ function checkFederalRegisterRelevance(doc: FederalRegisterDocument): FrRelevanc
 export function transformFederalRegisterDocument(
   doc: FederalRegisterDocument
 ): TransformedRegulatorySource {
-  const sourceType = mapDocumentTypeToSourceType(doc.type, doc.agencies);
+  const agencies = doc.agencies ?? [];
+  const sourceType = mapDocumentTypeToSourceType(doc.type, agencies);
   const status = determineFederalRegisterStatus(doc.type, parseFederalRegisterDate(doc.effective_date));
   const relevance = checkFederalRegisterRelevance(doc);
 
@@ -164,15 +202,16 @@ export function transformFederalRegisterDocument(
   const effectiveDate = parseFederalRegisterDate(doc.effective_date);
 
   // Determine introduced/enacted dates based on document type
+  const canonicalType = normalizeFederalRegisterDocumentType(doc.type);
   const introducedDate = publicationDate;
-  const enactedDate = doc.type === "RULE" || doc.type === "CORRECTION" ? effectiveDate : null;
+  const enactedDate = canonicalType === "RULE" || canonicalType === "CORRECTION" ? effectiveDate : null;
 
   return {
     sourceId: doc.document_number,
     sourceType,
     jurisdiction: "US", // Federal Register is always federal
     name,
-    sourceUrl: doc.html_url,
+    sourceUrl: documentUrl(doc),
     status,
     introducedDate,
     enactedDate,
@@ -189,8 +228,9 @@ export function transformFederalRegisterDocument(
 // ============================================================================
 function buildDocumentName(doc: FederalRegisterDocument): string {
   const typeLabel = formatDocType(doc.type);
-  const agencyShort = doc.agencies.length > 0
-    ? doc.agencies[0]!.short_name
+  const agencies = doc.agencies ?? [];
+  const agencyShort = agencies.length > 0
+    ? agencyDisplayName(agencies[0]!)
     : "Federal";
 
   // Format: "[Type] {Agency}: {Title}"
@@ -198,7 +238,7 @@ function buildDocumentName(doc: FederalRegisterDocument): string {
 }
 
 function formatDocType(type: FederalRegisterDocumentType): string {
-  switch (type) {
+  switch (normalizeFederalRegisterDocumentType(type)) {
     case "RULE":
       return "Final Rule";
     case "PROPOSED RULE":
@@ -221,11 +261,14 @@ function formatDocType(type: FederalRegisterDocumentType): string {
 // ============================================================================
 function buildFullText(doc: FederalRegisterDocument): string {
   const sections: string[] = [];
+  const agencies = doc.agencies ?? [];
+  const subjects = doc.subjects ?? [];
+  const topics = doc.topics ?? [];
 
   sections.push(`DOCUMENT NUMBER: ${doc.document_number}`);
-  sections.push(`TYPE: ${doc.type}`);
+  sections.push(`TYPE: ${formatDocType(doc.type)}`);
   sections.push(`TITLE: ${doc.title}`);
-  sections.push(`PUBLICATION DATE: ${doc.publication_date}`);
+  sections.push(`PUBLICATION DATE: ${doc.publication_date ?? "Unknown"}`);
 
   if (doc.effective_date) {
     sections.push(`EFFECTIVE DATE: ${doc.effective_date}`);
@@ -234,30 +277,34 @@ function buildFullText(doc: FederalRegisterDocument): string {
     sections.push(`COMMENTS CLOSE: ${doc.comments_close_on}`);
   }
 
-  sections.push("");
-  sections.push(`ACTION: ${doc.action}`);
+  if (doc.action) {
+    sections.push("");
+    sections.push(`ACTION: ${doc.action}`);
+  }
 
-  if (doc.agencies.length > 0) {
+  if (agencies.length > 0) {
     sections.push("");
     sections.push("AGENCIES:");
-    for (const agency of doc.agencies) {
-      sections.push(`  - ${agency.name} (${agency.short_name})`);
+    for (const agency of agencies) {
+      sections.push(`  - ${agency.name} (${agencyDisplayName(agency)})`);
     }
   }
 
-  if (doc.subjects.length > 0) {
+  if (subjects.length > 0) {
     sections.push("");
-    sections.push(`SUBJECTS: ${doc.subjects.join(", ")}`);
+    sections.push(`SUBJECTS: ${subjects.join(", ")}`);
   }
 
-  if (doc.topics.length > 0) {
+  if (topics.length > 0) {
     sections.push("");
-    sections.push(`TOPICS: ${doc.topics.join(", ")}`);
+    sections.push(`TOPICS: ${topics.join(", ")}`);
   }
 
-  sections.push("");
-  sections.push("ABSTRACT:");
-  sections.push(doc.abstract);
+  if (doc.abstract) {
+    sections.push("");
+    sections.push("ABSTRACT:");
+    sections.push(doc.abstract);
+  }
 
   // Include body text if available (truncated for storage)
   if (doc.body_text) {
