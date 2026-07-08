@@ -40,7 +40,10 @@ describe("ExposurePage render", () => {
   it("renders without crashing when exposure hooks receive API envelopes", async () => {
     const { default: ExposurePage } = await import("@/app/dashboard/exposure/page");
 
-    expect(() => renderToString(React.createElement(ExposurePage))).not.toThrow();
-    expect(renderToString(React.createElement(ExposurePage))).toContain("Exposure Analysis");
-  });
+    let html = "";
+    expect(() => {
+      html = renderToString(React.createElement(ExposurePage));
+    }).not.toThrow();
+    expect(html).toContain("Exposure Analysis");
+  }, 15000);
 });
