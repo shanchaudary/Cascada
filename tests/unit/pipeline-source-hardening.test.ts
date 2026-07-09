@@ -195,6 +195,10 @@ describe("pipeline source hardening", () => {
       sourceAgency: "Food and Drug Administration",
       documentType: "food_enforcement",
     });
+    expect(transformed.sourceUrl).toContain("https://api.fda.gov/food/enforcement.json");
+    expect(new URL(transformed.sourceUrl!).searchParams.get("search")).toBe(
+      'recall_number:"F-0001-2026"',
+    );
   });
 
   it("classifies USDA FoodData records as reference data, not regulations", () => {

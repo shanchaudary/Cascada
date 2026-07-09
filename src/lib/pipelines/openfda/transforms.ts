@@ -168,6 +168,7 @@ export function transformEnforcementRecord(record: OpenFdaFoodEnforcement): Tran
   const name = `FDA Recall ${record.recall_number}: ${truncateString(record.product_description, 150)}`;
   const fullText = buildEnforcementFullText(record);
   const recallDate = parseOpenFdaDate(record.recall_initiation_date);
+  const sourceUrl = buildOpenFdaEnforcementSourceUrl(record.recall_number);
 
   return {
     sourceId: record.recall_number,
@@ -176,7 +177,7 @@ export function transformEnforcementRecord(record: OpenFdaFoodEnforcement): Tran
     name,
     title: name,
     summary: record.reason_for_recall,
-    sourceUrl: null,
+    sourceUrl,
     citationUrl: "https://open.fda.gov/apis/food/enforcement/",
     status,
     publishedAt: recallDate,
@@ -394,4 +395,10 @@ function buildColorAdditiveFullText(record: OpenFdaColorAdditive): string {
 function truncateString(str: string, maxLength: number): string {
   if (str.length <= maxLength) return str;
   return str.substring(0, maxLength - 3) + "...";
+}
+
+function buildOpenFdaEnforcementSourceUrl(recallNumber: string): string {
+  const url = new URL("https://api.fda.gov/food/enforcement.json");
+  url.searchParams.set("search", `recall_number:"${recallNumber}"`);
+  return url.toString();
 }
