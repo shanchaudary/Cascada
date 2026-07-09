@@ -27,8 +27,18 @@ const pipelineRunSchema = z
       .max(MAX_PIPELINE_RUN_LIMIT)
       .default(DEFAULT_PIPELINE_RUN_LIMIT),
     cursor: z.string().nullable().optional(),
+    approvedSourceIds: z.array(z.string().trim().min(1)).max(MAX_PIPELINE_RUN_LIMIT).optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.mode === "write" && (!value.approvedSourceIds || value.approvedSourceIds.length === 0)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["approvedSourceIds"],
+        message: "Write mode requires approvedSourceIds",
+      });
+    }
+  });
 
 const pipelinePatchSchema = z
   .object({
@@ -84,6 +94,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       mode,
       limit: validated.limit,
       cursor: validated.cursor ?? null,
+      approvedSourceIds: validated.approvedSourceIds,
     });
 
     return NextResponse.json({ data: result });

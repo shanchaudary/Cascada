@@ -9,7 +9,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { createPipelineLogger } from "@/lib/logger";
-import { PipelineError } from "@/lib/errors";
+import { InvalidInputError, PipelineError } from "@/lib/errors";
 import { createHash } from "crypto";
 import type {
   PipelineType,
@@ -688,6 +688,19 @@ export abstract class BasePipelineClient<TRaw, TTransformed extends TransformedR
     const credentialStatus = getPipelineCredentialStatus(this.config);
     const errors: PipelineRecordError[] = [];
     const previews: PipelinePreviewRecord[] = [];
+    const requestedSourceIds = normalizeApprovedSourceIds(options.approvedSourceIds);
+    const requestedSourceIdSet = new Set(requestedSourceIds);
+    const seenRequestedSourceIds = new Set<string>();
+    const writtenSourceIds: string[] = [];
+    const skippedSourceIds: Array<{ sourceId: string; reason: string }> = [];
+    const rejectedSourceIds: Array<{ sourceId: string; reason: string }> = [];
+
+    if (options.mode === "write" && requestedSourceIds.length === 0) {
+      throw new InvalidInputError(
+        "approvedSourceIds",
+        "Write mode requires at least one reviewed sourceId",
+      );
+    }
 
     if (!credentialStatus.configured) {
       const completedAt = new Date().toISOString();
@@ -710,6 +723,10 @@ export abstract class BasePipelineClient<TRaw, TTransformed extends TransformedR
         pipelineRunId: null,
         errors,
         previews,
+        requestedSourceIds,
+        writtenSourceIds,
+        skippedSourceIds,
+        rejectedSourceIds,
         blockedReason: "not_configured",
         message: credentialStatus.message,
       };
@@ -760,8 +777,31 @@ export abstract class BasePipelineClient<TRaw, TTransformed extends TransformedR
             recordsTransformed++;
             remaining--;
 
+            const isRequestedForWrite =
+              options.mode !== "write" || requestedSourceIdSet.has(transformed.sourceId);
+
+            if (options.mode === "write" && !isRequestedForWrite) {
+              recordsSkipped++;
+              skippedSourceIds.push({
+                sourceId: transformed.sourceId,
+                reason: "Not listed in approvedSourceIds",
+              });
+              previews.push(this.buildPreview(transformed, false, false));
+              continue;
+            }
+
+            if (options.mode === "write") {
+              seenRequestedSourceIds.add(transformed.sourceId);
+            }
+
             if (!canWritePipelineRecord(transformed)) {
               recordsSkipped++;
+              if (options.mode === "write") {
+                rejectedSourceIds.push({
+                  sourceId: transformed.sourceId,
+                  reason: writeReadinessReason(transformed, false, false),
+                });
+              }
               previews.push(this.buildPreview(transformed, false, false));
               continue;
             }
@@ -773,11 +813,18 @@ export abstract class BasePipelineClient<TRaw, TTransformed extends TransformedR
 
             if (duplicate) {
               dedupeHits++;
+              if (options.mode === "write") {
+                skippedSourceIds.push({
+                  sourceId: transformed.sourceId,
+                  reason: writeReadinessReason(transformed, duplicate, dedup.hasChanged),
+                });
+              }
               continue;
             }
 
             if (options.mode === "write") {
               await this.persist(transformed, dedup);
+              writtenSourceIds.push(transformed.sourceId);
               if (dedup.exists && dedup.hasChanged) {
                 recordsUpdated++;
               } else {
@@ -796,6 +843,17 @@ export abstract class BasePipelineClient<TRaw, TTransformed extends TransformedR
 
         currentCursor = fetchResult.nextCursor;
         hasMorePages = !fetchResult.isLastPage && fetchResult.records.length > 0;
+      }
+
+      if (options.mode === "write") {
+        for (const sourceId of requestedSourceIds) {
+          if (!seenRequestedSourceIds.has(sourceId)) {
+            rejectedSourceIds.push({
+              sourceId,
+              reason: "Approved sourceId was not found in the bounded fetch window",
+            });
+          }
+        }
       }
 
       const completedAtDate = new Date();
@@ -836,6 +894,10 @@ export abstract class BasePipelineClient<TRaw, TTransformed extends TransformedR
         pipelineRunId: run?.id ?? null,
         errors,
         previews: previews.slice(0, options.limit),
+        requestedSourceIds,
+        writtenSourceIds,
+        skippedSourceIds,
+        rejectedSourceIds,
       };
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error);
@@ -883,6 +945,10 @@ export abstract class BasePipelineClient<TRaw, TTransformed extends TransformedR
         pipelineRunId: run?.id ?? null,
         errors,
         previews: previews.slice(0, options.limit),
+        requestedSourceIds,
+        writtenSourceIds,
+        skippedSourceIds,
+        rejectedSourceIds,
       };
     }
   }
@@ -892,7 +958,9 @@ export abstract class BasePipelineClient<TRaw, TTransformed extends TransformedR
     duplicate: boolean,
     changed: boolean,
   ): PipelinePreviewRecord {
+    const writeBlockedReason = writeReadinessReason(transformed, duplicate, changed);
     return {
+      source: this.pipelineType,
       sourceId: transformed.sourceId,
       sourceType: transformed.sourceType,
       name: transformed.name,
@@ -902,13 +970,16 @@ export abstract class BasePipelineClient<TRaw, TTransformed extends TransformedR
       sourceAgency: transformed.sourceAgency ?? null,
       documentType: transformed.documentType ?? null,
       publishedAt: transformed.publishedAt?.toISOString() ?? null,
+      observedAt: transformed.observedAt?.toISOString() ?? null,
       status: transformed.status,
+      rawPayloadHash: this.computeContentHash(transformed.rawApiResponse),
       isRelevant: transformed.isRelevant,
       relevanceDecision: transformed.relevanceDecision,
       matchedTerms: transformed.relevanceDecision?.matchedTerms ?? transformed.relevantCategories,
       excludedTerms: transformed.relevanceDecision?.excludedTerms ?? [],
       wouldWrite: canWritePipelineRecord(transformed) && !(duplicate && !changed),
-      why: writeReadinessReason(transformed, duplicate, changed),
+      writeBlockedReason,
+      why: writeBlockedReason,
       duplicate,
       changed,
     };
@@ -1070,6 +1141,10 @@ export abstract class BasePipelineClient<TRaw, TTransformed extends TransformedR
 // ============================================================================
 // Helper: map external source status to our SourceStatus enum
 // ============================================================================
+function normalizeApprovedSourceIds(sourceIds: string[] | undefined): string[] {
+  return [...new Set((sourceIds ?? []).map((id) => id.trim()).filter(Boolean))];
+}
+
 function mapExternalStatusToSourceStatus(currentStatus: SourceStatus): SourceStatus {
   // If the record was previously SME-approved, a change in external data
   // should reset it back to DETECTED for re-processing

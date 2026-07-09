@@ -77,6 +77,10 @@ describe("pipeline route hardening", () => {
       pipelineRunId: null,
       errors: [],
       previews: [],
+      requestedSourceIds: [],
+      writtenSourceIds: [],
+      skippedSourceIds: [],
+      rejectedSourceIds: [],
     });
   });
 
@@ -111,6 +115,7 @@ describe("pipeline route hardening", () => {
       mode: "dry_run",
       limit: 10,
       cursor: null,
+      approvedSourceIds: undefined,
     });
   });
 
@@ -129,12 +134,41 @@ describe("pipeline route hardening", () => {
     expect(mocks.runPipelineBounded).not.toHaveBeenCalled();
   });
 
-  it("allows explicit write only after authenticated compliance access", async () => {
+  it("rejects write mode without approved source IDs", async () => {
     mocks.auth.mockResolvedValue(sessionWithRole("TENANT_ADMIN"));
     const { POST } = await import("@/app/api/pipelines/route");
 
     const response = await POST(
       request({ pipelineType: "openfda", mode: "write", limit: 5 }),
+    );
+    const body = (await response.json()) as {
+      error: { code: string; issues: Array<{ path: string[]; message: string }> };
+    };
+
+    expect(response.status).toBe(400);
+    expect(body.error.code).toBe("INVALID_INPUT");
+    expect(body.error.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: ["approvedSourceIds"],
+          message: "Write mode requires approvedSourceIds",
+        }),
+      ]),
+    );
+    expect(mocks.runPipelineBounded).not.toHaveBeenCalled();
+  });
+
+  it("allows explicit write only after authenticated compliance access and reviewed IDs", async () => {
+    mocks.auth.mockResolvedValue(sessionWithRole("TENANT_ADMIN"));
+    const { POST } = await import("@/app/api/pipelines/route");
+
+    const response = await POST(
+      request({
+        pipelineType: "openfda",
+        mode: "write",
+        limit: 5,
+        approvedSourceIds: ["H-0950-2026"],
+      }),
     );
 
     expect(response.status).toBe(200);
@@ -142,6 +176,7 @@ describe("pipeline route hardening", () => {
       mode: "write",
       limit: 5,
       cursor: null,
+      approvedSourceIds: ["H-0950-2026"],
     });
   });
 });

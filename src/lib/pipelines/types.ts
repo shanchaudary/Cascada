@@ -194,9 +194,11 @@ export interface PipelineBoundedExecutionOptions {
   mode: PipelineExecutionMode;
   limit: number;
   cursor?: string | null;
+  approvedSourceIds?: string[];
 }
 
 export interface PipelinePreviewRecord {
+  source: PipelineType;
   sourceId: string;
   sourceType: SourceType;
   name: string;
@@ -206,15 +208,23 @@ export interface PipelinePreviewRecord {
   sourceAgency?: string | null;
   documentType?: string | null;
   publishedAt?: string | null;
+  observedAt?: string | null;
   status: SourceStatus;
+  rawPayloadHash: string;
   isRelevant: boolean;
   relevanceDecision?: RelevanceDecision;
   matchedTerms?: string[];
   excludedTerms?: string[];
   wouldWrite: boolean;
+  writeBlockedReason: string;
   why: string;
   duplicate: boolean;
   changed: boolean;
+}
+
+export interface PipelineSourceIdResult {
+  sourceId: string;
+  reason: string;
 }
 
 export interface PipelineBoundedExecutionResult {
@@ -236,6 +246,10 @@ export interface PipelineBoundedExecutionResult {
   pipelineRunId: string | null;
   errors: PipelineRecordError[];
   previews: PipelinePreviewRecord[];
+  requestedSourceIds: string[];
+  writtenSourceIds: string[];
+  skippedSourceIds: PipelineSourceIdResult[];
+  rejectedSourceIds: PipelineSourceIdResult[];
   blockedReason?: "not_configured";
   message?: string;
 }

@@ -17,8 +17,9 @@ import type {
 } from "@/lib/pipelines/types";
 import { OPENFDA_ENDPOINTS, OPENFDA_UNSUPPORTED_ENDPOINTS } from "@/lib/pipelines/openfda/types";
 import { transformEnforcementRecord } from "@/lib/pipelines/openfda/transforms";
+import { UsdaClient } from "@/lib/pipelines/usda/client";
 import { transformUsdaFoodItem } from "@/lib/pipelines/usda/transforms";
-import type { UsdaFoodItem } from "@/lib/pipelines/usda/types";
+import type { UsdaFoodItem, UsdaSearchResponse } from "@/lib/pipelines/usda/types";
 
 const root = process.cwd();
 
@@ -134,9 +135,64 @@ const federalRegisterFsisDocument: FederalRegisterDocument = {
   pdf_url: null,
 };
 
+function usdaFoodFixture(overrides: Partial<UsdaFoodItem> = {}): UsdaFoodItem {
+  return {
+    fdcId: 1001,
+    description: "Candy with FD&C Red 40",
+    dataType: "Branded",
+    publicationDate: "2026-01-01",
+    foodCategory: "Candy",
+    foodCategoryId: 1,
+    foodNutrients: [],
+    foodComponents: [],
+    foodAttributes: [],
+    ingredients: "Sugar, FD&C Red 40",
+    brandOwner: "Demo Brand",
+    gtinUpc: null,
+    ndbNumber: null,
+    foodCode: null,
+    modifiedDate: null,
+    availableDate: null,
+    marketCountry: "United States",
+    scientificName: null,
+    subbrandOwner: null,
+    servingSize: null,
+    servingSizeUnit: null,
+    householdServingFullText: null,
+    tradeChannel: null,
+    allHighlightFields: null,
+    score: null,
+    additionalDescriptions: null,
+    foodClass: null,
+    datasource: null,
+    langualFactors: null,
+    nutrientConversionFactors: null,
+    isHistorical: null,
+    inputFoods: null,
+    finalFoodInputFoods: null,
+    surveyFndds: null,
+    wweiaFoodCategory: null,
+    brandedFoodCategory: "Candy",
+    effects: null,
+    amount: null,
+    foodPortions: null,
+    notes: null,
+    fdcIdsOfConcatenatedItem: null,
+    ...overrides,
+  };
+}
+
 class DryRunFederalRegisterClient extends FederalRegisterClient {
   persistCalls = 0;
-  constructor(private readonly fixtureDocuments: FederalRegisterDocument[] = [federalRegisterDocument]) {
+  constructor(
+    private readonly fixtureDocuments: FederalRegisterDocument[] = [federalRegisterDocument],
+    private readonly dedupResult: DeduplicationCheck = {
+      exists: false,
+      existingId: null,
+      hasChanged: false,
+      contentHash: "new",
+    },
+  ) {
     super();
   }
 
@@ -152,6 +208,45 @@ class DryRunFederalRegisterClient extends FederalRegisterClient {
         previous_page_url: null,
         results: this.fixtureDocuments,
       } as FederalRegisterSearchResponse as TResponseBody,
+      statusCode: 200,
+      headers: {},
+      rateLimit: { remaining: null, resetAt: null, limit: null },
+    };
+  }
+
+  override async deduplicate(
+    _transformed: TransformedRegulatorySource,
+  ): Promise<DeduplicationCheck> {
+    return this.dedupResult;
+  }
+
+  override async persist(
+    transformed: TransformedRegulatorySource,
+    _dedup: DeduplicationCheck,
+  ): Promise<string> {
+    this.persistCalls++;
+    return transformed.sourceId;
+  }
+}
+
+class DryRunUsdaClient extends UsdaClient {
+  persistCalls = 0;
+
+  constructor(private readonly fixtureItems: UsdaFoodItem[]) {
+    super();
+  }
+
+  protected override async request<TResponseBody>(
+    _options: PipelineRequestOptions,
+  ): Promise<PipelineResponse<TResponseBody>> {
+    return {
+      data: {
+        foodSearchCriteria: "fixture",
+        totalHits: this.fixtureItems.length,
+        currentPage: 1,
+        totalPages: 1,
+        foods: this.fixtureItems,
+      } as UsdaSearchResponse as TResponseBody,
       statusCode: 200,
       headers: {},
       rateLimit: { remaining: null, resetAt: null, limit: null },
@@ -429,51 +524,7 @@ describe("pipeline source hardening", () => {
   });
 
   it("classifies USDA FoodData records as reference data, not regulations", () => {
-    const food = {
-      fdcId: 1001,
-      description: "Candy with FD&C Red 40",
-      dataType: "Branded",
-      publicationDate: "2026-01-01",
-      foodCategory: "Candy",
-      foodCategoryId: 1,
-      foodNutrients: [],
-      foodComponents: [],
-      foodAttributes: [],
-      ingredients: "Sugar, FD&C Red 40",
-      brandOwner: "Demo Brand",
-      gtinUpc: null,
-      ndbNumber: null,
-      foodCode: null,
-      modifiedDate: null,
-      availableDate: null,
-      marketCountry: "United States",
-      scientificName: null,
-      subbrandOwner: null,
-      servingSize: null,
-      servingSizeUnit: null,
-      householdServingFullText: null,
-      tradeChannel: null,
-      allHighlightFields: null,
-      score: null,
-      additionalDescriptions: null,
-      foodClass: null,
-      datasource: null,
-      langualFactors: null,
-      nutrientConversionFactors: null,
-      isHistorical: null,
-      inputFoods: null,
-      finalFoodInputFoods: null,
-      surveyFndds: null,
-      wweiaFoodCategory: null,
-      brandedFoodCategory: "Candy",
-      effects: null,
-      amount: null,
-      foodPortions: null,
-      notes: null,
-      fdcIdsOfConcatenatedItem: null,
-    } as UsdaFoodItem;
-
-    const transformed = transformUsdaFoodItem(food);
+    const transformed = transformUsdaFoodItem(usdaFoodFixture());
 
     expect(transformed.sourceType).toBe("REFERENCE_DATA");
     expect(transformed.documentType).toBe("fooddata_Branded");
@@ -489,10 +540,69 @@ describe("pipeline source hardening", () => {
     expect(canWritePipelineRecord(transformed)).toBe(false);
   });
 
-  it("refuses write mode for non-relevant Federal Register records", async () => {
+  it("rejects direct write mode without reviewed source IDs", async () => {
+    const client = new DryRunFederalRegisterClient([federalRegisterDocument]);
+
+    await expect(client.executeBounded({ mode: "write", limit: 1 })).rejects.toMatchObject({
+      code: "INVALID_INPUT",
+      statusCode: 400,
+    });
+    expect(client.persistCalls).toBe(0);
+    expect(dbMocks.pipelineRunCreate).not.toHaveBeenCalled();
+  });
+
+  it("writes only the approved relevant Federal Register source ID", async () => {
+    const client = new DryRunFederalRegisterClient([
+      federalRegisterTobaccoDocument,
+      federalRegisterDocument,
+    ]);
+
+    const result = await client.executeBounded({
+      mode: "write",
+      limit: 2,
+      approvedSourceIds: [federalRegisterDocument.document_number],
+    });
+
+    expect(result).toMatchObject({
+      mode: "write",
+      recordsFetched: 2,
+      recordsTransformed: 2,
+      recordsWritten: 1,
+      recordsCreated: 1,
+      pipelineRunId: "pipeline-run-1",
+      requestedSourceIds: [federalRegisterDocument.document_number],
+      writtenSourceIds: [federalRegisterDocument.document_number],
+      rejectedSourceIds: [],
+    });
+    expect(result.skippedSourceIds).toEqual(
+      expect.arrayContaining([
+        {
+          sourceId: federalRegisterTobaccoDocument.document_number,
+          reason: "Not listed in approvedSourceIds",
+        },
+      ]),
+    );
+    expect(client.persistCalls).toBe(1);
+    expect(dbMocks.pipelineRunCreate).toHaveBeenCalledOnce();
+    expect(dbMocks.pipelineRunUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "pipeline-run-1" },
+        data: expect.objectContaining({
+          recordsNew: 1,
+          recordsFailed: 0,
+        }),
+      }),
+    );
+  });
+
+  it("refuses write mode for approved non-relevant Federal Register records", async () => {
     const client = new DryRunFederalRegisterClient([federalRegisterTobaccoDocument]);
 
-    const result = await client.executeBounded({ mode: "write", limit: 1 });
+    const result = await client.executeBounded({
+      mode: "write",
+      limit: 1,
+      approvedSourceIds: [federalRegisterTobaccoDocument.document_number],
+    });
 
     expect(result).toMatchObject({
       mode: "write",
@@ -500,8 +610,15 @@ describe("pipeline source hardening", () => {
       recordsTransformed: 1,
       recordsWritten: 0,
       recordsSkipped: 1,
+      writtenSourceIds: [],
     });
     expect(client.persistCalls).toBe(0);
+    expect(result.rejectedSourceIds).toEqual([
+      {
+        sourceId: federalRegisterTobaccoDocument.document_number,
+        reason: "Not writeable because the record is not relevant",
+      },
+    ]);
     expect(result.previews[0]).toMatchObject({
       sourceId: federalRegisterTobaccoDocument.document_number,
       wouldWrite: false,
@@ -510,6 +627,86 @@ describe("pipeline source hardening", () => {
         relevant: false,
         confidence: "low",
       },
+    });
+  });
+
+  it("refuses write mode for approved USDA enrichment reference records", async () => {
+    process.env["USDA_API_KEY"] = "test-usda-key";
+    const food = usdaFoodFixture();
+    const client = new DryRunUsdaClient([food]);
+
+    const result = await client.executeBounded({
+      mode: "write",
+      limit: 1,
+      approvedSourceIds: [`USDA-FDC-${food.fdcId}`],
+    });
+
+    expect(result).toMatchObject({
+      mode: "write",
+      recordsFetched: 1,
+      recordsTransformed: 1,
+      recordsWritten: 0,
+      recordsSkipped: 1,
+      writtenSourceIds: [],
+      rejectedSourceIds: [
+        {
+          sourceId: `USDA-FDC-${food.fdcId}`,
+          reason: "Not writeable because the record is enrichment/reference data",
+        },
+      ],
+    });
+    expect(client.persistCalls).toBe(0);
+  });
+
+  it("reports duplicate approved writes as dedupe hits without inserting", async () => {
+    const client = new DryRunFederalRegisterClient([federalRegisterDocument], {
+      exists: true,
+      existingId: "existing-source-1",
+      hasChanged: false,
+      contentHash: "same",
+    });
+
+    const result = await client.executeBounded({
+      mode: "write",
+      limit: 1,
+      approvedSourceIds: [federalRegisterDocument.document_number],
+    });
+
+    expect(result).toMatchObject({
+      mode: "write",
+      recordsWritten: 0,
+      dedupeHits: 1,
+      writtenSourceIds: [],
+      skippedSourceIds: [
+        {
+          sourceId: federalRegisterDocument.document_number,
+          reason: "Not writeable because an unchanged duplicate already exists",
+        },
+      ],
+    });
+    expect(client.persistCalls).toBe(0);
+  });
+
+  it("includes human-review evidence fields in dry-run previews", async () => {
+    const client = new DryRunFederalRegisterClient([federalRegisterDocument]);
+
+    const result = await client.executeBounded({ mode: "dry_run", limit: 1 });
+
+    expect(result.previews[0]).toMatchObject({
+      source: "federal_register",
+      sourceId: federalRegisterDocument.document_number,
+      sourceType: "FDA_PROPOSED_RULE",
+      title: federalRegisterDocument.title,
+      sourceAgency: expect.stringContaining("Food and Drug Administration"),
+      documentType: "PROPOSED RULE",
+      sourceUrl: expect.stringContaining("federalregister.gov/documents"),
+      rawPayloadHash: expect.stringMatching(/^[a-f0-9]{16}$/),
+      relevanceDecision: {
+        relevant: true,
+        confidence: "high",
+      },
+      wouldWrite: true,
+      writeBlockedReason: "Writeable after human review and explicit write-mode approval",
     });
   });
 
