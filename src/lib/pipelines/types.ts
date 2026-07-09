@@ -3,6 +3,7 @@
 // Every pipeline client implements the same interface for consistency.
 
 import type { SourceType, SourceStatus } from "@prisma/client";
+import type { RelevanceDecision } from "./relevance";
 
 // ============================================================================
 // Pipeline identification
@@ -145,6 +146,8 @@ export interface TransformedRegulatorySource {
   matchMetadata?: Record<string, unknown> | null;
   /** Whether this record is likely relevant to food manufacturing */
   isRelevant: boolean;
+  /** Structured relevance decision used for dry-run review and write gating */
+  relevanceDecision?: RelevanceDecision;
 }
 
 // ============================================================================
@@ -197,10 +200,19 @@ export interface PipelinePreviewRecord {
   sourceId: string;
   sourceType: SourceType;
   name: string;
+  title?: string | null;
   jurisdiction: string;
   sourceUrl: string | null;
+  sourceAgency?: string | null;
+  documentType?: string | null;
+  publishedAt?: string | null;
   status: SourceStatus;
   isRelevant: boolean;
+  relevanceDecision?: RelevanceDecision;
+  matchedTerms?: string[];
+  excludedTerms?: string[];
+  wouldWrite: boolean;
+  why: string;
   duplicate: boolean;
   changed: boolean;
 }

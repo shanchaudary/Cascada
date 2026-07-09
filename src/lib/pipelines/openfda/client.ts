@@ -28,6 +28,7 @@ import type {
   OpenFdaFoodEnforcement,
   OpenFdaEndpoint,
 } from "./types";
+import { canWritePipelineRecord } from "../relevance";
 import { OPENFDA_ENDPOINTS } from "./types";
 import { transformEnforcementRecord } from "./transforms";
 
@@ -278,7 +279,7 @@ export class OpenFdaClient extends BasePipelineClient<
       for (const record of enforcements) {
         try {
           const transformed = transformEnforcementRecord(record);
-          if (!transformed.isRelevant) {
+          if (!canWritePipelineRecord(transformed)) {
             skipped++;
             continue;
           }

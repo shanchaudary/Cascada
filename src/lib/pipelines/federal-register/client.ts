@@ -28,6 +28,7 @@ import type {
   FederalRegisterSearchParams,
   FederalRegisterDocumentType,
 } from "./types";
+import { canWritePipelineRecord } from "../relevance";
 import { FEDERAL_REGISTER_FOOD_AGENCIES, FEDERAL_REGISTER_FOOD_CONDITIONS } from "./types";
 import { transformFederalRegisterDocument } from "./transforms";
 
@@ -337,7 +338,7 @@ export class FederalRegisterClient extends BasePipelineClient<
         try {
           const transformed = transformFederalRegisterDocument(doc);
 
-          if (!transformed.isRelevant) {
+          if (!canWritePipelineRecord(transformed)) {
             skipped++;
             continue;
           }
@@ -390,7 +391,7 @@ export class FederalRegisterClient extends BasePipelineClient<
             try {
               const transformed = transformFederalRegisterDocument(doc);
 
-              if (!transformed.isRelevant) {
+              if (!canWritePipelineRecord(transformed)) {
                 skipped++;
                 continue;
               }

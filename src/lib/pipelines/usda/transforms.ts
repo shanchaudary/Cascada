@@ -7,6 +7,7 @@
 
 import type { TransformedRegulatorySource } from "../types";
 import { FOOD_RELEVANCE_KEYWORDS } from "../types";
+import { evaluateUsdaReferenceRelevance } from "../relevance";
 import type { UsdaFoodItem, UsdaDataType } from "./types";
 import { USDA_MANUFACTURING_CATEGORIES } from "./types";
 import type { SourceType, SourceStatus } from "@prisma/client";
@@ -205,6 +206,12 @@ function mapDataTypeInfo(dataType: UsdaDataType): {
  */
 export function transformUsdaFoodItem(item: UsdaFoodItem): TransformedRegulatorySource {
   const relevance = checkUsdaRelevance(item);
+  const relevanceDecision = evaluateUsdaReferenceRelevance(
+    item,
+    relevance.matchedCategories,
+    relevance.isRelevant,
+    relevance.reason,
+  );
 
   const name = buildUsdaItemName(item);
   const fullText = buildUsdaFullText(item);
@@ -237,8 +244,10 @@ export function transformUsdaFoodItem(item: UsdaFoodItem): TransformedRegulatory
       dataType: item.dataType,
       foodCategory: item.foodCategory ?? null,
       brandOwner: item.brandOwner ?? null,
+      relevanceDecision,
     },
     isRelevant: relevance.isRelevant,
+    relevanceDecision,
   };
 }
 

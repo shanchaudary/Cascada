@@ -5,6 +5,7 @@
 
 import type { TransformedRegulatorySource } from "../types";
 import { FOOD_RELEVANCE_KEYWORDS } from "../types";
+import { evaluateOpenFdaEnforcementRelevance } from "../relevance";
 import type {
   OpenFdaFoodEnforcement,
   OpenFdaGrasNotice,
@@ -91,37 +92,6 @@ interface FdaRelevanceResult {
 }
 
 /**
- * Check an enforcement record for food manufacturing relevance.
- * Since these are already from the food endpoint, most are relevant.
- * We still filter to focus on manufacturing-impacting events.
- */
-function checkEnforcementRelevance(record: OpenFdaFoodEnforcement): FdaRelevanceResult {
-  const textFields = [
-    record.product_description,
-    record.reason_for_recall,
-    record.product_type,
-    record.recalling_firm,
-  ].filter(Boolean);
-
-  const combinedText = textFields.join(" ").toLowerCase();
-  const matchedCategories: string[] = [];
-
-  for (const keyword of FOOD_RELEVANCE_KEYWORDS) {
-    if (combinedText.includes(keyword.toLowerCase())) {
-      matchedCategories.push(keyword);
-    }
-  }
-
-  // All food enforcement records are potentially relevant
-  // but we boost confidence for matches
-  const isRelevant = true; // Food enforcement is always relevant to food manufacturers
-  const confidence = matchedCategories.length >= 2 ? 0.95 :
-    matchedCategories.length >= 1 ? 0.85 : 0.7;
-
-  return { isRelevant, matchedCategories, confidence };
-}
-
-/**
  * Check a GRAS notice for relevance.
  * GRAS notices are relevant when they involve substances
  * that food manufacturers use.
@@ -163,7 +133,7 @@ export function transformEnforcementRecord(record: OpenFdaFoodEnforcement): Tran
   const jurisdiction = determineFdaJurisdiction(record.state);
   const sourceType: SourceType = "FDA_RULE";
   const status = determineEnforcementStatus(record);
-  const relevance = checkEnforcementRelevance(record);
+  const relevanceDecision = evaluateOpenFdaEnforcementRelevance(record);
 
   const name = `FDA Recall ${record.recall_number}: ${truncateString(record.product_description, 150)}`;
   const fullText = buildEnforcementFullText(record);
@@ -189,15 +159,17 @@ export function transformEnforcementRecord(record: OpenFdaFoodEnforcement): Tran
     effectiveDate: recallDate,
     fullText,
     rawApiResponse: record as unknown as Record<string, unknown>,
-    relevantCategories: relevance.matchedCategories,
+    relevantCategories: relevanceDecision.matchedTerms,
     matchMetadata: {
       source: "openfda",
       endpoint: "food/enforcement.json",
-      confidence: relevance.confidence,
+      confidence: relevanceDecision.confidence,
       classification: record.classification,
       productType: record.product_type,
+      relevanceDecision,
     },
-    isRelevant: relevance.isRelevant,
+    isRelevant: relevanceDecision.relevant,
+    relevanceDecision,
   };
 }
 

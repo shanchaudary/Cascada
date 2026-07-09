@@ -27,6 +27,7 @@ import type {
   UsdaFoodItem,
   UsdaSearchParams,
 } from "./types";
+import { canWritePipelineRecord } from "../relevance";
 import { USDA_INGREDIENT_QUERIES } from "./types";
 import { transformUsdaFoodItem } from "./transforms";
 
@@ -253,7 +254,7 @@ export class UsdaClient extends BasePipelineClient<
             try {
               const transformed = transformUsdaFoodItem(item);
 
-              if (!transformed.isRelevant) {
+              if (!canWritePipelineRecord(transformed)) {
                 skipped++;
                 continue;
               }
@@ -298,7 +299,7 @@ export class UsdaClient extends BasePipelineClient<
       for (const item of foundationFoods.foods ?? []) {
         try {
           const transformed = transformUsdaFoodItem(item);
-          if (!transformed.isRelevant) {
+          if (!canWritePipelineRecord(transformed)) {
             skipped++;
             continue;
           }

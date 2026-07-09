@@ -5,7 +5,7 @@
 // into our unified regulatory source model.
 
 import type { TransformedRegulatorySource } from "../types";
-import { FOOD_RELEVANCE_KEYWORDS } from "../types";
+import { evaluateFederalRegisterRelevance } from "../relevance";
 import type {
   FederalRegisterDocument,
   FederalRegisterAgency,
@@ -116,71 +116,6 @@ export function determineFederalRegisterStatus(
 }
 
 // ============================================================================
-// Relevance checking
-// ============================================================================
-interface FrRelevanceResult {
-  isRelevant: boolean;
-  matchedCategories: string[];
-  confidence: number;
-}
-
-/**
- * Check a Federal Register document for food manufacturing relevance.
- * Examines title, abstract, subjects, and agency information.
- */
-function checkFederalRegisterRelevance(doc: FederalRegisterDocument): FrRelevanceResult {
-  const agencies = doc.agencies ?? [];
-  const subjects = doc.subjects ?? [];
-  const topics = doc.topics ?? [];
-  const textFields = [
-    doc.title,
-    doc.abstract,
-    doc.action,
-    ...subjects,
-    ...topics,
-    doc.excerpts ?? "",
-  ].filter(Boolean);
-
-  const combinedText = textFields.join(" ").toLowerCase();
-  const matchedCategories: string[] = [];
-
-  for (const keyword of FOOD_RELEVANCE_KEYWORDS) {
-    if (combinedText.includes(keyword.toLowerCase())) {
-      matchedCategories.push(keyword);
-    }
-  }
-
-  // FDA documents are always potentially relevant
-  const isFdaDoc = agencies.some(
-    (agency) =>
-      agencySearchText(agency).includes("food and drug") ||
-      agencySearchText(agency).includes("fda")
-  );
-
-  // Food safety agency documents get a boost
-  const isFoodSafetyDoc = agencies.some(
-    (agency) =>
-      agencySearchText(agency).includes("food safety") ||
-      agencySearchText(agency).includes("agricultural marketing")
-  );
-
-  let confidence = 0;
-  if (isFdaDoc && matchedCategories.length >= 2) confidence = 0.95;
-  else if (isFdaDoc && matchedCategories.length >= 1) confidence = 0.9;
-  else if (isFdaDoc) confidence = 0.7; // FDA docs even without keyword match
-  else if (isFoodSafetyDoc && matchedCategories.length >= 1) confidence = 0.85;
-  else if (matchedCategories.length >= 3) confidence = 0.8;
-  else if (matchedCategories.length >= 2) confidence = 0.7;
-  else if (matchedCategories.length >= 1) confidence = 0.6;
-
-  return {
-    isRelevant: confidence >= 0.5,
-    matchedCategories,
-    confidence,
-  };
-}
-
-// ============================================================================
 // Main transform
 // ============================================================================
 
@@ -194,7 +129,7 @@ export function transformFederalRegisterDocument(
   const agencies = doc.agencies ?? [];
   const sourceType = mapDocumentTypeToSourceType(doc.type, agencies);
   const status = determineFederalRegisterStatus(doc.type, parseFederalRegisterDate(doc.effective_date));
-  const relevance = checkFederalRegisterRelevance(doc);
+  const relevanceDecision = evaluateFederalRegisterRelevance(doc);
 
   const name = buildDocumentName(doc);
   const fullText = buildFullText(doc);
@@ -225,14 +160,16 @@ export function transformFederalRegisterDocument(
     effectiveDate,
     fullText,
     rawApiResponse: doc as unknown as Record<string, unknown>,
-    relevantCategories: relevance.matchedCategories,
+    relevantCategories: relevanceDecision.matchedTerms,
     matchMetadata: {
       source: "federal_register",
-      confidence: relevance.confidence,
+      confidence: relevanceDecision.confidence,
       agencies: agencies.map((agency) => agency.slug ?? agency.name ?? agency.raw_name),
       documentType: doc.type,
+      relevanceDecision,
     },
-    isRelevant: relevance.isRelevant,
+    isRelevant: relevanceDecision.relevant,
+    relevanceDecision,
   };
 }
 

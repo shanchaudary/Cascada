@@ -30,6 +30,7 @@ import type {
 } from "./types";
 import { DEFAULT_RETRY_CONFIG } from "./types";
 import { getPipelineCredentialStatus } from "./credentials";
+import { canWritePipelineRecord, writeReadinessReason } from "./relevance";
 import type { SourceStatus } from "@prisma/client";
 
 // ============================================================================
@@ -518,8 +519,8 @@ export abstract class BasePipelineClient<TRaw, TTransformed extends TransformedR
             // Step 1: Transform
             const transformed = this.transform(rawRecord);
 
-            // Step 2: Filter for relevance
-            if (!transformed.isRelevant) {
+            // Step 2: Filter for relevance and regulatory write eligibility
+            if (!canWritePipelineRecord(transformed)) {
               totalSkipped++;
               continue;
             }
@@ -759,7 +760,7 @@ export abstract class BasePipelineClient<TRaw, TTransformed extends TransformedR
             recordsTransformed++;
             remaining--;
 
-            if (!transformed.isRelevant) {
+            if (!canWritePipelineRecord(transformed)) {
               recordsSkipped++;
               previews.push(this.buildPreview(transformed, false, false));
               continue;
@@ -895,10 +896,19 @@ export abstract class BasePipelineClient<TRaw, TTransformed extends TransformedR
       sourceId: transformed.sourceId,
       sourceType: transformed.sourceType,
       name: transformed.name,
+      title: transformed.title ?? transformed.name,
       jurisdiction: transformed.jurisdiction,
       sourceUrl: transformed.sourceUrl,
+      sourceAgency: transformed.sourceAgency ?? null,
+      documentType: transformed.documentType ?? null,
+      publishedAt: transformed.publishedAt?.toISOString() ?? null,
       status: transformed.status,
       isRelevant: transformed.isRelevant,
+      relevanceDecision: transformed.relevanceDecision,
+      matchedTerms: transformed.relevanceDecision?.matchedTerms ?? transformed.relevantCategories,
+      excludedTerms: transformed.relevanceDecision?.excludedTerms ?? [],
+      wouldWrite: canWritePipelineRecord(transformed) && !(duplicate && !changed),
+      why: writeReadinessReason(transformed, duplicate, changed),
       duplicate,
       changed,
     };

@@ -1,12 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FederalRegisterClient } from "@/lib/pipelines/federal-register/client";
 import type {
   FederalRegisterDocument,
   FederalRegisterSearchResponse,
 } from "@/lib/pipelines/federal-register/types";
+import { transformFederalRegisterDocument } from "@/lib/pipelines/federal-register/transforms";
 import { LegiScanClient } from "@/lib/pipelines/legiscan/client";
+import { canWritePipelineRecord } from "@/lib/pipelines/relevance";
 import type {
   PipelineRequestOptions,
   PipelineResponse,
@@ -19,6 +21,20 @@ import { transformUsdaFoodItem } from "@/lib/pipelines/usda/transforms";
 import type { UsdaFoodItem } from "@/lib/pipelines/usda/types";
 
 const root = process.cwd();
+
+const dbMocks = vi.hoisted(() => ({
+  pipelineRunCreate: vi.fn(),
+  pipelineRunUpdate: vi.fn(),
+}));
+
+vi.mock("@/lib/db", () => ({
+  prisma: {
+    pipelineRun: {
+      create: dbMocks.pipelineRunCreate,
+      update: dbMocks.pipelineRunUpdate,
+    },
+  },
+}));
 
 function read(relativePath: string): string {
   return fs.readFileSync(path.join(root, relativePath), "utf8");
@@ -47,8 +63,82 @@ const federalRegisterDocument: FederalRegisterDocument = {
   pdf_url: "https://www.govinfo.gov/content/pkg/FR-2026-06-25/pdf/2026-12855.pdf",
 };
 
+const federalRegisterTobaccoDocument: FederalRegisterDocument = {
+  document_number: "2026-13047",
+  title: "Establishment Registration and Product Listing for Tobacco Products",
+  type: "Proposed Rule",
+  abstract: "FDA proposes requirements for tobacco product registration and nicotine product listing.",
+  publication_date: "2026-06-29",
+  agencies: federalRegisterDocument.agencies,
+  excerpts: "tobacco products nicotine cigarette cigars",
+  html_url:
+    "https://www.federalregister.gov/documents/2026/06/29/2026-13047/establishment-registration-and-product-listing-for-tobacco-products",
+  pdf_url: null,
+};
+
+const federalRegisterMedicalDeviceDocument: FederalRegisterDocument = {
+  document_number: "2026-14000",
+  title: "Medical Device Classification Product Review",
+  type: "Notice",
+  abstract: "FDA announces medical device clinical trial classification updates.",
+  publication_date: "2026-06-30",
+  agencies: federalRegisterDocument.agencies,
+  excerpts: "medical device clinical trial",
+  html_url: "https://www.federalregister.gov/documents/2026/06/30/2026-14000/device-review",
+  pdf_url: null,
+};
+
+const federalRegisterGenericFdaDocument: FederalRegisterDocument = {
+  document_number: "2026-14002",
+  title: "Regulatory Review Period Docket Update",
+  type: "Notice",
+  abstract: "The Food and Drug Administration announces a general docket update.",
+  publication_date: "2026-06-30",
+  agencies: federalRegisterDocument.agencies,
+  excerpts: "general docket update",
+  html_url: "https://www.federalregister.gov/documents/2026/06/30/2026-14002/docket-update",
+  pdf_url: null,
+};
+
+const federalRegisterFoodContactDeviceDocument: FederalRegisterDocument = {
+  document_number: "2026-14001",
+  title: "Food Contact Substance Notification for Packaging Components",
+  type: "Notice",
+  abstract: "FDA announces a food contact substance review for packaging materials.",
+  publication_date: "2026-06-30",
+  agencies: federalRegisterDocument.agencies,
+  excerpts: "food contact substance packaging device component",
+  html_url: "https://www.federalregister.gov/documents/2026/06/30/2026-14001/food-contact",
+  pdf_url: null,
+};
+
+const federalRegisterFsisDocument: FederalRegisterDocument = {
+  document_number: "2026-15000",
+  title: "Food Safety and Inspection Service Labeling Compliance Update",
+  type: "Rule",
+  abstract: "FSIS finalizes food safety labeling compliance requirements.",
+  publication_date: "2026-07-01",
+  agencies: [
+    {
+      raw_name: "Food Safety and Inspection Service",
+      name: "Food Safety and Inspection Service",
+      slug: "food-safety-and-inspection-service",
+      url: "https://www.federalregister.gov/agencies/food-safety-and-inspection-service",
+      json_url: "https://www.federalregister.gov/api/v1/agencies/201",
+      parent_id: 2,
+      id: 201,
+    },
+  ],
+  excerpts: "food safety labeling compliance",
+  html_url: "https://www.federalregister.gov/documents/2026/07/01/2026-15000/fsis-labeling",
+  pdf_url: null,
+};
+
 class DryRunFederalRegisterClient extends FederalRegisterClient {
   persistCalls = 0;
+  constructor(private readonly fixtureDocuments: FederalRegisterDocument[] = [federalRegisterDocument]) {
+    super();
+  }
 
   protected override async request<TResponseBody>(
     _options: PipelineRequestOptions,
@@ -60,7 +150,7 @@ class DryRunFederalRegisterClient extends FederalRegisterClient {
         total_pages: 1,
         next_page_url: null,
         previous_page_url: null,
-        results: [federalRegisterDocument],
+        results: this.fixtureDocuments,
       } as FederalRegisterSearchResponse as TResponseBody,
       statusCode: 200,
       headers: {},
@@ -107,7 +197,14 @@ describe("pipeline source hardening", () => {
   const originalLegiscanKey = process.env["LEGISCAN_API_KEY"];
   const originalFederalRegisterKey = process.env["FEDERAL_REGISTER_API_KEY"];
 
+  beforeEach(() => {
+    dbMocks.pipelineRunCreate.mockResolvedValue({ id: "pipeline-run-1" });
+    dbMocks.pipelineRunUpdate.mockResolvedValue({});
+  });
+
   afterEach(() => {
+    vi.clearAllMocks();
+
     if (originalLegiscanKey === undefined) {
       delete process.env["LEGISCAN_API_KEY"];
     } else {
@@ -135,6 +232,14 @@ describe("pipeline source hardening", () => {
       pipelineRunId: null,
     });
     expect(client.persistCalls).toBe(0);
+    expect(result.previews[0]).toMatchObject({
+      sourceId: federalRegisterDocument.document_number,
+      wouldWrite: true,
+      relevanceDecision: {
+        relevant: true,
+        sourceCategory: "federal_regulatory_document",
+      },
+    });
   });
 
   it("keeps Federal Register no-key behavior in bounded runs", async () => {
@@ -194,11 +299,133 @@ describe("pipeline source hardening", () => {
       citationUrl: "https://open.fda.gov/apis/food/enforcement/",
       sourceAgency: "Food and Drug Administration",
       documentType: "food_enforcement",
+      relevanceDecision: {
+        relevant: true,
+        confidence: "high",
+        sourceCategory: "food_enforcement",
+      },
     });
     expect(transformed.sourceUrl).toContain("https://api.fda.gov/food/enforcement.json");
     expect(new URL(transformed.sourceUrl!).searchParams.get("search")).toBe(
       'recall_number:"F-0001-2026"',
     );
+    expect(transformed.sourceUrl).not.toContain("api_key");
+  });
+
+  it("marks Federal Register food labeling documents as writeable regulatory records", () => {
+    const transformed = transformFederalRegisterDocument(federalRegisterDocument);
+
+    expect(transformed.relevanceDecision).toMatchObject({
+      relevant: true,
+      confidence: "high",
+      sourceCategory: "federal_regulatory_document",
+    });
+    expect(transformed.relevanceDecision?.matchedTerms).toEqual(
+      expect.arrayContaining(["food additive"]),
+    );
+    expect(canWritePipelineRecord(transformed)).toBe(true);
+  });
+
+  it("excludes Federal Register tobacco documents from write mode", () => {
+    const transformed = transformFederalRegisterDocument(federalRegisterTobaccoDocument);
+
+    expect(transformed.relevanceDecision).toMatchObject({
+      relevant: false,
+      confidence: "low",
+      sourceCategory: "federal_regulatory_document",
+    });
+    expect(transformed.relevanceDecision?.excludedTerms).toEqual(
+      expect.arrayContaining(["tobacco", "nicotine"]),
+    );
+    expect(canWritePipelineRecord(transformed)).toBe(false);
+  });
+
+  it("excludes Federal Register medical-device documents unless food-contact evidence exists", () => {
+    const device = transformFederalRegisterDocument(federalRegisterMedicalDeviceDocument);
+    const foodContact = transformFederalRegisterDocument(federalRegisterFoodContactDeviceDocument);
+
+    expect(device.relevanceDecision).toMatchObject({
+      relevant: false,
+      confidence: "low",
+    });
+    expect(device.relevanceDecision?.excludedTerms).toEqual(expect.arrayContaining(["device"]));
+    expect(canWritePipelineRecord(device)).toBe(false);
+
+    expect(foodContact.relevanceDecision).toMatchObject({
+      relevant: true,
+      sourceCategory: "federal_regulatory_document",
+    });
+    expect(foodContact.relevanceDecision?.matchedTerms).toEqual(
+      expect.arrayContaining(["food contact"]),
+    );
+    expect(canWritePipelineRecord(foodContact)).toBe(true);
+  });
+
+  it("does not treat FDA agency text alone as Federal Register food relevance", () => {
+    const transformed = transformFederalRegisterDocument(federalRegisterGenericFdaDocument);
+
+    expect(transformed.relevanceDecision).toMatchObject({
+      relevant: false,
+      confidence: "low",
+    });
+    expect(transformed.relevanceDecision?.matchedTerms).toEqual(["food"]);
+    expect(transformed.relevanceDecision?.excludedReasons).toEqual(
+      expect.arrayContaining([
+        "FDA records need specific food/manufacturing evidence beyond the word food",
+      ]),
+    );
+    expect(canWritePipelineRecord(transformed)).toBe(false);
+  });
+
+  it("marks FSIS food documents as relevant Federal Register records", () => {
+    const transformed = transformFederalRegisterDocument(federalRegisterFsisDocument);
+
+    expect(transformed.relevanceDecision).toMatchObject({
+      relevant: true,
+      sourceCategory: "federal_regulatory_document",
+    });
+    expect(transformed.relevanceDecision?.matchedTerms).toEqual(
+      expect.arrayContaining(["food safety", "labeling"]),
+    );
+    expect(canWritePipelineRecord(transformed)).toBe(true);
+  });
+
+  it("excludes openFDA records that are clearly non-food", () => {
+    const transformed = transformEnforcementRecord({
+      country: "United States",
+      city: "Austin",
+      address_1: "1 Main St",
+      address_2: "",
+      state: "TX",
+      zip: "78701",
+      postal_code: "",
+      product_quantity: "1 unit",
+      code_info: "LOT1",
+      product_description: "Infusion pump device",
+      reason_for_recall: "Medical device software malfunction",
+      recalling_firm: "Demo Medical",
+      recall_number: "Z-0001-2026",
+      initial_firm_notification: "Letter",
+      recall_initiation_date: "20260701",
+      report_date: "20260702",
+      classification: "Class II",
+      status: "Ongoing",
+      voluntary_mandated: "Voluntary",
+      distribution_pattern: "Nationwide",
+      recall_type: "Firm Initiated",
+      event_id: 12346,
+      product_type: "Device",
+      termination_date: "",
+      more_code_info: "",
+    });
+
+    expect(transformed.relevanceDecision).toMatchObject({
+      relevant: false,
+      confidence: "low",
+      sourceCategory: "food_enforcement",
+    });
+    expect(transformed.relevanceDecision?.excludedTerms).toEqual(expect.arrayContaining(["device"]));
+    expect(canWritePipelineRecord(transformed)).toBe(false);
   });
 
   it("classifies USDA FoodData records as reference data, not regulations", () => {
@@ -252,6 +479,37 @@ describe("pipeline source hardening", () => {
     expect(transformed.documentType).toBe("fooddata_Branded");
     expect(transformed.matchMetadata).toMatchObject({
       role: "ingredient_product_reference",
+      relevanceDecision: {
+        sourceCategory: "enrichment_reference",
+      },
+    });
+    expect(transformed.relevanceDecision).toMatchObject({
+      sourceCategory: "enrichment_reference",
+    });
+    expect(canWritePipelineRecord(transformed)).toBe(false);
+  });
+
+  it("refuses write mode for non-relevant Federal Register records", async () => {
+    const client = new DryRunFederalRegisterClient([federalRegisterTobaccoDocument]);
+
+    const result = await client.executeBounded({ mode: "write", limit: 1 });
+
+    expect(result).toMatchObject({
+      mode: "write",
+      recordsFetched: 1,
+      recordsTransformed: 1,
+      recordsWritten: 0,
+      recordsSkipped: 1,
+    });
+    expect(client.persistCalls).toBe(0);
+    expect(result.previews[0]).toMatchObject({
+      sourceId: federalRegisterTobaccoDocument.document_number,
+      wouldWrite: false,
+      why: "Not writeable because the record is not relevant",
+      relevanceDecision: {
+        relevant: false,
+        confidence: "low",
+      },
     });
   });
 
