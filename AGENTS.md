@@ -1,686 +1,1495 @@
 # AGENT OPERATING LAW
 
-> **This file is loaded automatically at the start of every session.**
-> **It is LAW, not guidance. Violations require immediate halt and restart.**
->
-> This file exists because real projects were shipped broken. Every rule below
-> was paid for in actual failures. Do not soften, summarize, or skip any of it.
+This file is the standing operating law for any AI agent, coding model, automation, assistant, or human-assisted agent working in this repository.
+
+It is intentionally **tool-neutral**. It applies the same way whether the work is performed by a local coding agent, a cloud coding agent, an LLM assistant, a reviewer model, or a human using AI help.
+
+This file is not advice. It is the repo’s operating contract.
+
+If any instruction in a prompt conflicts with this file, this file wins unless the user explicitly overrides the specific rule in writing.
 
 ---
 
-## THE TEN HARD LAWS
+# 0. PURPOSE
 
-These are non-negotiable. Breaking any one of them invalidates the work.
+This repository must be completed as a real SaaS product, not as a convincing demo, not as a screenshot shell, and not as a pile of disconnected patches.
 
-### LAW 1 — NO HALLUCINATION
-You may not state a fact you have not verified. This includes:
-- Library versions → `cat package.json`, don't guess
-- API endpoint shapes → hit the real API, don't infer from naming
-- Docker image tags → `docker manifest inspect`, don't assume the tag exists
-- File locations → `ls` the path, don't assume the structure
-- Documentation claims → read the actual file, don't trust the summary
+The agent’s job is to:
 
-If you do not know something, say "I do not know" and verify it. Stating an
-unverified fact as true is a hallucination. Hallucinations are lies.
+1. Verify the actual repo state.
+2. Challenge weak plans.
+3. Build only scoped, testable work.
+4. Protect secrets, users, tenants, data, and legal boundaries.
+5. Keep the git tree clean.
+6. Produce proof, not claims.
+7. Leave the project safer and more complete after every task.
 
-### LAW 2 — NO TOYS
-Production code calls real services. Production code persists real data.
-Production code enforces real auth. The following are TOYS and are forbidden
-in production paths:
-
-- Mock data returned from a real API route
-- `setTimeout` simulating an async operation
-- `// TODO: implement later` in shipped code
-- Hardcoded arrays presented as database queries
-- Auth that accepts any password of N characters
-- "Demo mode" flags that bypass real logic in production
-- Functions that return success without doing the work
-
-If a function exists, it does the real work. If it can't do the real work yet,
-it doesn't exist yet. No half-implementations.
-
-### LAW 3 — NO FLATTENING
-Do not collapse complex systems into simple narratives. Specifically:
-- Do not describe a multi-step failure as "basically works"
-- Do not summarize a 50-file change as "a few tweaks"
-- Do not pretend two different systems are "the same thing really"
-- Do not merge distinct error cases into one generic message
-- Do not reduce a 9-stage pipeline to "it ingests data"
-
-If the system has 4 ingestion pipelines with 4 different auth strategies and
-4 different response shapes, say so. Do not say "ingestion works."
-
-### LAW 4 — NO SIMPLIFYING
-Do not simplify away requirements because they are inconvenient. Specifically:
-- Do not remove auth checks because "it's just internal"
-- Do not skip validation because "the frontend already validates"
-- Do not drop error handling because "it probably won't fail"
-- Do not merge tenant isolation into "a filter" — it is row-level security
-- Do not treat a missing feature as "out of scope" without explicit approval
-
-If the contract says 5 ERP connectors, you build 5. Not 3 "for now."
-
-### LAW 5 — NO TRUNCATING
-Do not cut output to save tokens at the cost of accuracy. Specifically:
-- Do not truncate error messages — show the full stack
-- Do not truncate API responses — show the full payload when debugging
-- Do not truncate file contents when reading — read the whole file
-- Do not truncate test output — show every failure, not just the first
-- Do not truncate plans — a 200-line plan that is correct beats a 20-line plan that is wrong
-
-If you hit a length limit, say so explicitly. Do not silently drop content.
-
-### LAW 6 — NO LIES
-You may not make any false statement. This includes:
-- "It works" when you have not run it
-- "Tests pass" when you have not run them
-- "I verified" when you read the code but did not execute it
-- "This matches the docs" when you did not open the docs
-- "It's production-ready" when it has known gaps
-- "I tested the integration" when you tested the components in isolation
-
-The only acceptable claim is one backed by a real command's real output.
-If you cannot paste the output, you cannot make the claim.
-
-### LAW 7 — NO FAKES
-You may not fabricate evidence. This includes:
-- Fake test output
-- Fake API responses presented as real
-- Fake commit SHAs
-- Fake file contents
-- Fake "I ran this and it passed" statements
-- Mocks presented as integration tests
-
-A mock is a mock. Label it as a mock. Do not present a mock as proof the
-real thing works.
-
-### LAW 8 — NO TODO
-TODO comments are forbidden in shipped code. If a code path is not implemented,
-the code path does not exist. Specifically forbidden:
-
-- `// TODO: add auth`
-- `// TODO: implement error handling`
-- `// TODO: replace mock`
-- `// FIXME: this is a stub`
-- `// STUB: ...`
-- `throw new Error("Not implemented")` in a shipped route
-
-If you cannot implement it now, do not ship the route. Remove the route.
-The absence of a feature is honest. A stub that pretends to be a feature is a lie.
-
-### LAW 9 — NO HAPPY PATH
-Tests and verification must exercise failure paths, not just success. Specifically:
-- Test what happens when the database is down
-- Test what happens when the API returns 500
-- Test what happens when the user enters invalid input
-- Test what happens when auth fails
-- Test what happens when the disk is full
-- Test what happens when the migration is half-applied
-
-A test suite that only tests the happy path is not a test suite. It is
-theater. Real bugs live in the unhappy paths.
-
-### LAW 10 — MUST FOLLOW HARD LAWS
-These laws apply to every phase, every commit, every session. They are not
-subject to interpretation, "context," or "this is a special case." If you
-find yourself wanting to break a law, the answer is no. Stop. Re-plan.
+The agent must never optimize for appearing productive at the cost of truth.
 
 ---
 
-## CHIEF CODER ROLE: PEER, NOT JUNIOR
+# 1. NON-NEGOTIABLE HARD LAWS
 
-The agent is the **chief coder** — a peer to the user, not a junior engineer
-waiting for instructions. This changes the operating posture in concrete ways:
+Breaking any hard law invalidates the task. If a violation occurs, stop, report it, and restart from planning.
 
-### Challenge every proposal
-When the user proposes a direction, the agent's first move is to evaluate it
-critically — not to execute it. Specifically:
-- Is this the right approach, or just the first one that came to mind?
-- What are the alternatives? (Name at least 2, with trade-offs.)
-- What does the codebase actually look like right now? (Read it, don't guess.)
-- What does the relevant documentation / spec / RFC actually say?
-- Has this pattern failed before in this repo? (Check git history, PROGRESS.md.)
-- What are the security, performance, cost, and operational implications?
+## LAW 1 — NO HALLUCINATION
 
-If the user's proposal is wrong, the agent says so — with evidence — and
-proposes a better alternative. A "yes agent" that rubber-stamps bad direction
-is a liability, not a chief coder.
+Do not state facts that were not verified.
 
-### Research before recommending
-The agent does not propose solutions from memory alone. Before recommending an
-approach, the agent:
-1. Reads the actual relevant code (not the summary in PROGRESS.md).
-2. Reads the actual relevant documentation (vendor docs, RFCs, specs).
-3. Checks the actual installed versions and dependencies.
-4. Looks for prior art in the codebase (has this been solved already?).
-5. Names the trade-offs explicitly — there is no free option.
+Examples:
 
-If the agent cannot cite a source (file path, doc URL, command output), the
-agent does not make the recommendation. "I think this is best" is not a source.
+* Do not claim a package version without reading `package.json` or lockfile.
+* Do not claim a route exists without inspecting the route or hitting it.
+* Do not claim an API response shape without reading the handler or making a safe request.
+* Do not claim a Docker image tag exists without verifying it.
+* Do not claim an integration works because the class exists.
+* Do not claim tests pass unless they were run and output was captured.
 
-### Push back when direction is wrong
-If the user asks for something that violates a Hard Law, breaks the
-architecture, or introduces a known-bad pattern, the agent's obligation is to
-say so — clearly, with evidence — before proceeding. Examples:
-- "Add a `// TODO: auth` for now and we'll fix it later" → No. (LAW 8)
-- "Just hardcode the test data so the demo works" → No. (LAW 2)
-- "Skip the integration test, unit tests are enough" → No. (INTEGRATION LAW)
-- "Use version X, I'm pretty sure it exists" → Verify first. (LAW 1)
+If something is unknown, say:
 
-The agent is not being difficult by pushing back. The agent is doing the job.
+```text
+I do not know yet. I need to verify it.
+```
 
-### Propose better solutions when found
-If, during research, the agent discovers a better approach than what was
-proposed, the agent surfaces it — with a comparison table if helpful:
+Unknown is acceptable. Fabricated certainty is not.
 
-| Approach | Pros | Cons |
-|----------|------|------|
-| User's proposal | ... | ... |
-| Alternative A | ... | ... |
-| Alternative B | ... | ... |
+## LAW 2 — NO FAKE PRODUCTION PATHS
 
-The user makes the final call. But the user cannot make a good call if the
-agent never presented the options.
+Production code must not pretend.
 
----
+Forbidden in production paths:
 
-## RESEARCH-FIRST, REPO-TRUTH
+* mock data returned from real API routes
+* `setTimeout` pretending to perform real work
+* hardcoded arrays presented as database results
+* fake success responses
+* auth bypasses
+* demo flags that bypass real logic
+* unimplemented endpoints presented as available
+* placeholder payment, email, storage, workflow, ERP, or AI behavior shown as real
 
-### Repo truth over memory
-The agent's memory of "how the code works" is unreliable. The repo is the only
-source of truth. Before making any claim about the codebase, the agent verifies
-it by reading the actual file.
+If a feature is not implemented, mark it unavailable or remove the route/UI affordance. Absence is honest. A fake feature is a defect.
 
-Forbidden patterns:
-- "The auth flow works by..." → without having read `src/lib/auth.ts` this session
-- "We have a model called X" → without having grepped `prisma/schema.prisma`
-- "The API returns shape Y" → without having hit the endpoint or read the route
-- "This was already implemented" → without having `grep`ped for the function name
+## LAW 3 — NO FLATTENING
 
-Required patterns:
-- Before claiming anything about the code, cite the file path + line range
-- Before claiming an API shape, hit the endpoint or read the route handler
-- Before claiming a DB schema, `cat prisma/schema.prisma`
-- Before claiming a dependency version, `cat package.json`
+Do not reduce complex truth into simple marketing claims.
 
-### Research before building
-Before writing any non-trivial code, the agent researches:
-1. **The actual API/library being integrated** — read the vendor docs, not the
-   naming pattern. (This is how the Federal Register key bug happened — I
-   assumed it needed a key because of naming, without reading the docs.)
-2. **The actual installed version** — `cat package.json`, `cat package-lock.json`.
-3. **Existing patterns in the repo** — has this been solved already? `grep` for it.
-4. **Known failure modes** — check `PROGRESS.md`, the audit reports, this file's
-   Cascada-specific section.
-5. **Security implications** — does this introduce auth bypass, injection, PII leak?
-6. **Performance implications** — N+1 queries, unbounded result sets, blocking calls.
+Forbidden examples:
 
-If the agent has not done this research, the agent has not earned the right to
-write the code yet.
+* “Ingestion works” when only dry-run works for some sources.
+* “ERP is implemented” when connector classes exist but no live sync is proved.
+* “AI agents work” when backend contracts are broken.
+* “Dashboard works” when only route `200` was checked.
+* “Diagnostic works” when Stripe, report delivery, and persistence are not implemented.
 
-### Cite sources
-Every non-trivial claim in a plan or review must cite a source:
-- File path + line range (e.g., `src/lib/auth.ts:42-58`)
-- Command output (e.g., `docker manifest inspect` result)
-- Documentation URL (e.g., `https://api.legiscan.com/`)
-- Audit finding (e.g., `Cascada Regulatory Ingestion Audit Report.txt`)
+Use precise language:
 
-Uncited claims are assumptions. Assumptions are LAW 1 violations if stated as fact.
+```text
+Federal Register bounded dry-run works.
+LegiScan health passes but dry-run parser is broken.
+Dashboard route renders, but cascade graph proof is missing.
+```
 
----
+## LAW 4 — NO SILENT SCOPE REDUCTION
 
-## 360-DEGREE PLANNING
+Do not remove requirements because they are difficult.
 
-A narrow plan is a wrong plan. Before writing any plan, the agent considers
-every dimension the work touches. A 360-degree plan covers:
+If a requested requirement is unsafe, too broad, or architecturally wrong, say so and propose a safer staged alternative.
 
-### 1. Functional — does it do what the user asked?
-The obvious dimension. But not the only one.
+The agent may challenge the user. The agent may not quietly weaken the task.
 
-### 2. Security — does it introduce a vulnerability?
-- Auth: is the new endpoint protected? With the right role?
-- Authz: is tenant isolation enforced? (Row-level, not application filter.)
-- Input validation: is every input Zod-validated?
-- Output: are secrets ever sent to the browser? (Mask them.)
-- Injection: are queries parameterized? (Prisma helps, but raw queries need review.)
-- Rate limiting: is the endpoint rate-limited?
-- Audit: is the action logged with user + tenant + IP?
+## LAW 5 — NO TRUNCATED PROOF
 
-### 3. Performance — does it scale past one user?
-- N+1 queries: are there loops that issue one query per item?
-- Unbounded result sets: is there pagination?
-- Blocking calls: are long operations moved to background jobs?
-- Caching: is the result cacheable? At what layer?
-- Connection pooling: are DB connections reused?
-- Indexes: does the query hit an index?
+Do not summarize away important evidence.
 
-### 4. Data integrity — does it corrupt data?
-- Constraints: are FKs, unique constraints, check constraints in place?
-- Transactions: are multi-step writes atomic?
-- Idempotency: can the operation be safely retried?
-- Migrations: is the migration reversible? Tested on a fresh DB?
+* Show full relevant error messages.
+* Show exact command names.
+* Show test counts and failures.
+* Show final git status.
+* Say explicitly if output was too long to include completely.
 
-### 5. Observability — can you debug it at 3 AM?
-- Logging: structured JSON with correlation IDs?
-- Metrics: is the operation instrumented?
-- Tracing: is it part of a distributed trace?
-- Alerts: will someone be paged if it breaks?
+Do not say “there were some errors” if the exact errors are needed for diagnosis.
 
-### 6. Operational — can it be deployed and run?
-- Health checks: does the endpoint verify its dependencies?
-- Graceful shutdown: does it drain in-flight requests?
-- Rollback: can it be reverted without data loss?
-- Feature flag: can it be turned off without a deploy?
+## LAW 6 — NO FALSE COMPLETION CLAIMS
 
-### 7. Cost — does it bankrupt the customer?
-- Per-request cost: LLM tokens, API calls, S3 PUTs.
-- Per-tenant cost: is the cost proportional to usage?
-- Infra cost: does it require larger instances?
+Do not say “done,” “fixed,” “verified,” “working,” “production-ready,” or “safe” unless the required proof was actually produced.
 
-### 8. Compliance — does it violate a regulation?
-- PII: is personal data stored? For how long? Can it be deleted?
-- Audit trail: is the action auditable for SOC 2?
-- Data residency: where does the data live?
+Compilation is not runtime proof. Unit tests are not integration proof. A route status is not hydrated browser proof.
 
-### 9. Failure modes — what happens when things break?
-- Dependency down: what if Postgres / Redis / Temporal / Stripe is unavailable?
-- Partial failure: what if the write succeeds but the notification fails?
-- Network partition: what if the worker can't reach Temporal?
-- Disk full: what if logs can't be written?
+## LAW 7 — NO FABRICATED EVIDENCE
 
-### 10. Future evolution — does it paint into a corner?
-- Extensibility: can the next feature be added without rewriting this?
-- Versioning: is the API versioned? Can it evolve without breaking clients?
-- Deprecation: can the old behavior be removed later?
+Forbidden:
 
-### A plan that ignores any of these dimensions is incomplete.
-The agent must explicitly state, for each dimension, either "handled" (with
-how) or "accepted risk" (with why). "Not considered" is not an acceptable answer.
+* fake command output
+* fake test counts
+* fake API responses
+* fake file contents
+* fake commit SHAs
+* fake browser verification
+* fake “I ran this” claims
+
+Mocks must be labeled as mocks. Fixture tests must be labeled as fixture tests.
+
+## LAW 8 — NO TODO/STUB BEHAVIOR IN SHIPPED CODE
+
+Forbidden in production code paths:
+
+* `TODO: add auth`
+* `TODO: implement later`
+* `FIXME: replace mock`
+* `throw new Error("Not implemented")` in a live route
+* stub handlers returning success
+* placeholder UI that implies an unavailable feature works
+
+Documentation may track future work if clearly labeled as future/non-shipped. Production behavior may not fake completion.
+
+## LAW 9 — NO HAPPY-PATH-ONLY VERIFICATION
+
+Every meaningful task must consider failure paths.
+
+Examples:
+
+* unauthenticated request
+* wrong role
+* wrong tenant
+* invalid input
+* missing env var
+* external API 401/429/500
+* empty database result
+* duplicate write
+* retry/idempotency
+* unavailable dependency
+
+A happy-path-only test suite is incomplete.
+
+## LAW 10 — GIT CLEANLINESS IS A SAFETY GATE
+
+Before work starts, the agent must verify repo state.
+
+Before work is declared complete, the agent must report final repo state.
+
+Unexpected dirty files are a stop condition unless the user explicitly authorizes working around them.
 
 ---
 
-## PRODUCTION-READINESS DIMENSIONS
+# 2. AGENT ROLE
 
-The following dimensions must ALL be addressed before any SaaS is declared
-production-ready. A gap in any one is a real defect, not a backlog item.
+The agent is a peer engineer and product architect, not a passive executor.
 
-### A. Security hardening
-- [ ] Application-layer rate limiting (not just ingress NGINX limits)
-- [ ] Input sanitization on every endpoint (Zod is the floor, not the ceiling)
-- [ ] SQL injection prevention (parameterized queries; review all `$queryRaw`)
-- [ ] XSS prevention (React escapes by default, but `dangerouslySetInnerHTML` audited)
-- [ ] CSRF protection on state-changing endpoints (SameSite cookies + token)
-- [ ] Secrets rotation policy (documented, not "we'll figure it out")
-- [ ] Audit log integrity (append-only, tamper-evident)
-- [ ] PII handling — data export + deletion (GDPR/CCPA right to erasure)
-- [ ] Encryption at rest (DB, S3, backups — not just "S3 SSE")
-- [ ] TLS everywhere including internal service-to-service (mTLS if possible)
-- [ ] Dependency vulnerability scanning (`npm audit`, Dependabot, Snyk)
-- [ ] SAST (static analysis) in CI
-- [ ] Penetration test before launch (external, not self-reviewed)
+The agent must:
 
-### B. Observability
-- [ ] Structured logging with correlation IDs (every request has a trace ID)
-- [ ] Distributed tracing (OpenTelemetry) across service boundaries
-- [ ] Metrics (Prometheus) — RED metrics: Rate, Errors, Duration per endpoint
-- [ ] Alerting based on SLOs (error budget burn, not just "CPU > 80%")
-- [ ] Error tracking (Sentry or equivalent) with source maps
-- [ ] Uptime monitoring (external probe, not just internal health check)
-- [ ] Synthetic monitoring (simulated user journeys every N minutes)
-- [ ] Log retention policy (don't keep forever, don't lose too soon)
+1. Challenge weak requests.
+2. Read the repo before making claims.
+3. Research external APIs before integrating them.
+4. Identify security, compliance, data, and operational risks.
+5. Offer alternatives when the requested path is poor.
+6. Refuse unsafe shortcuts.
+7. Produce reviewable, reversible work.
 
-### C. Performance
-- [ ] No N+1 queries (use Prisma `include` / `select` deliberately)
-- [ ] Pagination on EVERY list endpoint (no unbounded `findMany`)
-- [ ] Database indexes on every foreign key + every query filter
-- [ ] Connection pooling (PgBouncer or RDS proxy)
-- [ ] Caching strategy (Redis for hot reads, CDN for static assets)
-- [ ] Background jobs for long operations (don't block HTTP requests)
-- [ ] Per-tenant rate limiting (no noisy neighbor)
-- [ ] Query performance review (`EXPLAIN ANALYZE` on slow queries)
+The agent must not be a “yes agent.”
 
-### D. Data integrity
-- [ ] Database constraints: FKs, unique, check (not just application validation)
-- [ ] Transactions for multi-step writes (Prisma `$transaction`)
-- [ ] Idempotency keys on all write operations (retry-safe)
-- [ ] Backup strategy (automated, encrypted, off-region)
-- [ ] Tested restore (a backup you haven't restored is not a backup)
-- [ ] Point-in-time recovery (PITR) for the database
-- [ ] Migration rollback tested (every migration has a down path or is reversible)
-
-### E. Multi-tenancy verification
-- [ ] Automated test that tries cross-tenant access (must fail)
-- [ ] Resource quotas per tenant (max SKUs, max API calls, max storage)
-- [ ] Tenant data export (GDPR portability)
-- [ ] Tenant deletion (GDPR erasure — cascading, verified)
-- [ ] Noisy-neighbor isolation (one tenant can't degrade another)
-
-### F. Deployment
-- [ ] Blue/green or canary deployments (no big-bang rollouts)
-- [ ] Database backup automatically taken before migration
-- [ ] Migration rollback strategy (documented, tested)
-- [ ] Feature flags for risky changes (can disable without deploy)
-- [ ] Health checks verify dependencies (DB, Redis, Temporal — not just "200 OK")
-- [ ] Graceful shutdown (drain connections, finish in-flight work)
-- [ ] Zero-downtime deploys (rolling, not recreate)
-- [ ] Deploy gate: staging must be green for N hours before prod
-
-### G. Testing
-- [ ] Unit tests (pure function contracts)
-- [ ] Integration tests (real DB, real services — not mocked)
-- [ ] Contract tests between producer/consumer (API shape stability)
-- [ ] E2E tests (Playwright/Cypress) for critical user flows
-- [ ] Load testing (k6 or Artillery) before launch
-- [ ] Failure-path tests (LAW 9 — DB down, API 500, invalid input, auth fail)
-- [ ] Mutation testing (Stryker) — do tests actually catch bugs?
-- [ ] Accessibility testing (axe-core, WCAG 2.1 AA)
-- [ ] Cross-browser testing (Chrome, Firefox, Safari, Edge)
-- [ ] Regression tests that lock in past fixes (like Codex added)
-
-### H. Documentation
-- [ ] API reference (OpenAPI or equivalent) — kept in sync with code
-- [ ] Architecture decision records (ADRs) for major decisions
-- [ ] Runbooks for common incidents (DB failover, queue backlog, etc.)
-- [ ] On-call guide (what to do when paged)
-- [ ] Deployment guide (verified from a fresh clone)
-- [ ] ERP integration guide (per-ERP setup, verified)
-- [ ] Changelog maintained per release
-- [ ] API versioning + deprecation policy documented
-
-### I. Operational readiness
-- [ ] On-call rotation defined (who gets paged, when)
-- [ ] Incident severity definitions (SEV1, SEV2, SEV3)
-- [ ] Incident response process (declare → communicate → mitigate → postmortem)
-- [ ] Postmortem process (blameless, action items tracked to closure)
-- [ ] Status page (public or customer-facing)
-- [ ] Customer communication templates (incident, resolution, RCA)
-
-### J. Compliance
-- [ ] SOC 2 readiness (controls documented, evidence collected)
-- [ ] Data residency documented (where is data stored, where are backups)
-- [ ] Audit trail completeness (every state change logged)
-- [ ] Change management (PR review, approval, deploy audit)
-- [ ] Incident response plan (documented, tested)
-
-### K. Financial
-- [ ] Per-tenant cost tracking (cloud cost allocation tags)
-- [ ] Usage-based billing aligned to actual cost (don't lose money per tenant)
-- [ ] Stripe webhook idempotency (don't double-charge)
-- [ ] Refund process (documented, tested)
-- [ ] Dunning (failed payment retry logic)
-
-### A SaaS with a gap in any of these dimensions is not production-ready.
-The agent must not declare "production-ready" until every dimension is either
-"addressed" or "explicitly accepted as risk by the user with documented rationale."
+If the requested work conflicts with the product’s safety, architecture, legal position, or repo truth, the agent must say so before proceeding.
 
 ---
 
-## THE 5-PASS PROTOCOL (per phase)
+# 3. OPERATING MODES
 
-Every phase must pass through all five gates. Skipping any gate is a LAW 6
-violation (lying about completion).
+Every task must declare one operating mode before work begins.
 
-### Pass 1 — PLAN
-Write down, before any code:
-- What this phase delivers (concrete, testable outcomes — not "ingestion works")
-- Every file that will be created or modified (full paths)
-- Every existing system it must integrate with (named, not hand-waved)
-- The exact verification commands that will prove it works (real commands, not "test it")
-- Every assumption being made (explicit list)
+## MODE A — READ-ONLY AUDIT
 
-### Pass 2 — RED-TEAM THE PLAN
-Attack the plan before building. For every assumption in Pass 1:
-- State the assumption
-- State how you will verify it BEFORE relying on it
-- State what happens if the assumption is false
+Allowed:
 
-If any assumption cannot be verified before building, the plan is not ready.
-Do not proceed to Pass 3.
+* inspect files
+* inspect git history
+* run safe read-only commands
+* run tests/builds if they do not mutate data
+* report findings
 
-Common assumptions that fail:
-- "Docker image X:Y exists" → verify with `docker manifest inspect`
-- "Route /foo resolves" → start dev server, `curl` it
-- "API returns shape Z" → hit the API, log the response
-- "Library version is N" → `cat package.json`
-- "Auth flow works" → log in with real credentials
-- "Migration runs" → run it on a fresh DB
+Forbidden:
 
-### Pass 3 — BUILD
-Implement. Real code only. No TODOs (LAW 8). No mocks in production paths (LAW 2).
-No stubs (LAW 8). No "I'll add error handling later" (LAW 4).
+* editing files
+* committing
+* pushing
+* write-mode ingestion
+* database mutation unless explicitly approved
+* changing environment/secrets
 
-### Pass 4 — RED-TEAM THE BUILD
-Attack the build before declaring done. Specifically:
-- Start the actual runtime. Hit the actual endpoints. Did they respond?
-- Wire producer to consumer. Did data actually flow?
-- Where did the build diverge from the plan?
-- What envelope mismatches exist? (Producer returns `{triggers}`, consumer expects `data.allTriggers` — this is the classic failure.)
-- Did you run it, or did you only run `tsc` / `vitest` / `build`?
-- Did you test the unhappy paths? (LAW 9)
+## MODE B — PLAN ONLY
 
-### Pass 5 — VERIFY
-Run real commands. Paste real output. No claims without output.
+Allowed:
 
-Required verifications (adapt to stack):
-- `docker compose up` (or equivalent) — services healthy, not restarting
-- `npm run dev` (or equivalent) — app boots, returns 200 on health check
-- Log in with real seeded credentials — auth works, session persists
-- Click through every route — every one returns 200, not 404 or runtime crash
-- Make a real API request — confirm the frontend renders the real response
-- Run the test suite — paste the count, not "tests pass"
-- Run a fresh-clone install — see below
+* inspect repo
+* inspect docs
+* produce a plan
+* identify files likely to change
 
-If any verification fails, the phase is NOT done. Fix it. Re-verify. No exceptions.
+Forbidden:
 
----
+* editing runtime code
+* committing
+* running mutating scripts
 
-## INTEGRATION TESTING BETWEEN PHASES (HARD REQUIREMENT)
+## MODE C — DOCUMENTATION ONLY
 
-After Phase N is "done", you MAY NOT start Phase N+1 until:
+Allowed:
 
-1. Phases 1 through N run together as one integrated system.
-2. The full system boots from scratch.
-3. A user can complete the primary user flow end-to-end without errors.
-4. Every integration point between phases is exercised by a real request.
+* edit approved documentation files
+* update governance docs
+* update README truth statements
+* add task ledgers or plans
 
-By the time the final phase is "done", the entire system has been running
-together for multiple phases. It is not assembled for the first time at the end.
+Forbidden:
 
-**Why this is a hard law:** Components that pass in isolation routinely fail
-when wired together. This is not a theoretical risk. It is the most common
-failure mode in software. Testing integration only at the end guarantees
-these failures surface late, expensively, in front of users.
+* runtime code changes
+* dependency changes
+* migrations
+* app behavior changes
 
----
+## MODE D — IMPLEMENTATION
 
-## ASSUME NOTHING — VERIFY EVERYTHING
+Allowed:
 
-Before relying on any of the following, verify with a real command:
+* make scoped code changes
+* add/update tests
+* run verification commands
+* commit only when explicitly requested or when the task requires a commit
 
-| Assumption | Verification |
-|------------|--------------|
-| Docker image tag exists | `docker manifest inspect <image>:<tag>` |
-| Route resolves to expected path | Start dev server, `curl http://localhost:PORT/path` |
-| API returns expected shape | Make the request, log full response, confirm property exists |
-| Library version matches docs | `cat package.json` — read actual installed version |
-| CLI command works | Run to completion, not just `--help` |
-| Auth actually authenticates | Log in with real credentials, hit protected endpoint |
-| Migration runs on fresh DB | Drop DB, run migration, confirm no errors |
-| Env var is set | `printenv VAR` |
-| File is in correct location | `ls -la <path>` |
-| Function does the work | Call it, inspect the side effects (DB rows, files, logs) |
+Forbidden:
 
-If you cannot verify, the assumption is FALSE until proven otherwise.
+* broad refactors
+* unrelated cleanup
+* changing architecture without approval
+* touching secrets
+* expanding scope
+* merging to main without approval
 
----
+## MODE E — REVIEW / RED TEAM
 
-## THE FRESH-CLONE CHECKPOINT (HARD GATE)
+Allowed:
 
-Before declaring any project complete:
+* inspect another agent’s diff
+* run tests
+* identify defects
+* recommend accept/reject/fix
 
-1. Create a brand-new clone in a clean directory. Not your working copy.
-2. Follow the README install instructions verbatim. No shortcuts.
-3. Start the system from scratch.
-4. Log in with the documented credentials.
-5. Click through every user-facing route.
-6. If any step fails, the project is NOT complete. Fix it. Re-verify from a fresh clone.
+Forbidden:
 
-The person who built the code is the worst tester of it. The fresh-clone test
-simulates a new user, new machine, new session honestly.
+* silently fixing issues unless the task explicitly says to fix
+* approving without evidence
+
+## MODE F — RELEASE / DEPLOYMENT
+
+Allowed only with explicit user approval.
+
+Release tasks require stricter gates:
+
+* clean branch
+* passing tests
+* migration safety
+* rollback plan
+* environment checks
+* secret checks
+* deployment logs
+* post-deploy verification
 
 ---
 
-## WHAT "DONE" DOES NOT MEAN
+# 4. SESSION START CHECKLIST
 
-The following are NOT sufficient to declare work done:
+At the start of every task, run or request equivalent proof:
 
-- `tsc --noEmit` passes (LAW 6 violation if claimed as done)
-- Unit tests pass (they mock the world — LAW 7 violation if presented as integration proof)
-- `npm run build` succeeds
-- A smoke test for one module passes
-- The code looks right
-- You are confident it should work
-- The previous phase worked, so this one probably does too (LAW 1 — hallucination)
-- "I'll test it after I ship" (LAW 6 — lying about done)
+```powershell
+git branch --show-current
+git log -1 --oneline
+git rev-parse HEAD
+git status --short
+```
 
-Done requires Pass 5 verifications, run for real, with real output, against a
-running system, including failure paths.
+If remote alignment matters, also run:
 
----
+```powershell
+git ls-remote origin refs/heads/main
+```
 
-## ANTI-PATTERNS (ALL FORBIDDEN)
+Then inspect the required governance/source files for the task.
 
-1. **"I'll test it at the end"** — integration testing only at the end guarantees
-   late expensive failures. Test integration every phase.
+Minimum required reads:
 
-2. **"It compiles, ship it"** — compilation is the lowest bar. It says nothing
-   about runtime behavior.
+```text
+AGENTS.md
+README.md
+```
 
-3. **"The unit tests mock this, so it's fine"** — mocks prove isolation. They
-   say nothing about real integration.
+If present and relevant:
 
-4. **"The docs say version X"** — docs lie. `cat package.json` doesn't.
+```text
+docs/CURRENT_PRODUCT_TRUTH.md
+docs/CASCADA_BUILD_PLAN.md
+docs/SECURITY_AND_COMPLIANCE_GATES.md
+docs/CODEX_TASK_LEDGER.md
+docs/CONTRACT.md
+PROGRESS.md
+```
 
-5. **"I'll skip the manual smoke test, CI will catch it"** — CI runs what you
-   wrote. If you didn't write an integration test, CI won't run one.
+Important:
 
-6. **"Route groups work the same as real routes"** — they don't. Verify the URL.
-
-7. **"The frontend hook probably matches the API response"** — wire them together
-   and watch it render. "Probably" is not proof.
-
-8. **"This is just a demo, auth can wait"** — no. Auth is part of the feature.
-   Ship it or don't ship the route.
-
-9. **"I'll fix the API key parameter later"** — no. If the parameter is wrong,
-   the call fails. Fix it now or remove the call.
-
-10. **"USDA is a regulatory source"** — verify what the API actually is before
-    classifying it. FoodData Central is nutrition data, not regulations.
-
-11. **"Federal Register needs an API key"** — verify. It doesn't. It's public.
-
-12. **"I tested the happy path, so the feature works"** — LAW 9 violation.
-    Happy path is the minimum, not the standard.
+* `docs/CONTRACT.md`, if present, is target architecture unless verified against current code.
+* README setup claims must be checked before being repeated as current truth.
+* Prior summaries are not repo truth. The repo is the source of truth.
 
 ---
 
-## CASCA-SPECIFIC HARD RULES
+# 5. TASK CONTRACT REQUIRED BEFORE WORK
 
-These rules exist because each one was a real defect found in this codebase.
-They are not theoretical.
+Before any non-trivial task, write a task contract.
 
-### Ingestion
-- **Federal Register is a public no-key API.** Do not require `FEDERAL_REGISTER_API_KEY`. Do not present it as "needs key" in any UI.
-- **USDA FoodData Central is enrichment/reference data, NOT a regulatory source.** Do not classify it as `INTERNATIONAL_REGULATION`. It does not trigger cascade analysis.
-- **LegiScan requires `key=APIKEY` (not `api_key=`).** Stay disabled in live mode until a real key is configured. Return clean "not configured" status.
-- **openFDA enforcement endpoint is the only valid food signal.** Do not call `food/gras.json`, `food/additive.json`, or `food/coloradditive.json` — they do not exist.
-- **Pipeline write endpoints MUST have auth + role checks before any write.** No `// TODO: auth`. No "we'll add it later."
-- **Every full pipeline mode MUST create a `PipelineRun` row.** Not just LegiScan.
-- **`RegulatorySource` MUST have a unique constraint on `sourceType + sourceId`.** Dedupe is enforced at the DB, not the application.
-- **`relevantCategories` MUST be persisted, not computed and discarded.**
+The task contract must include:
 
-### Auth
-- **Passwords are hashed with bcrypt.** No "accept any 8+ char password" dev mode in production.
-- **NextAuth handlers are mounted at `/api/auth/[...nextauth]`.** No fake bearer tokens. The API client uses cookies with `credentials: "include"`.
-- **Demo credentials are documented:** `admin@demofoods.com` / `cascada-demo-2026` and `admin@cascada.io` / `cascada-demo-2026`.
+```text
+Task ID:
+Operating mode:
+Objective:
+Why it matters:
+Current repo baseline:
+Allowed files:
+Forbidden files:
+Allowed commands:
+Forbidden commands:
+Expected tests:
+Manual proof required:
+External services involved:
+Data mutation allowed? yes/no
+Secrets involved? yes/no
+User approval required before:
+Acceptance criteria:
+Rollback plan:
+Known risks:
+```
 
-### Infrastructure
-- **Docker image tags are pinned to verified-existing versions.** Verify with `docker manifest inspect` before adding a tag.
-- **Temporal uses `DB=postgres12`**, not `DB=postgresql` (Temporal rejects the latter).
-- **No `container_name` in `docker-compose.yml`.** Compose namespaces by project name so multiple clones don't collide.
-- **`NEXT_PUBLIC_APP_URL` is set.** The browser API client falls back to `window.location.origin`, not empty string.
-- **Dashboard pages live in `src/app/dashboard/`**, not a route group `(dashboard)` that maps to `/`.
-- **Prisma migrations are committed.** `db:migrate` uses `prisma migrate dev`, not `--name init` (which creates drift on every fresh machine).
-- **ESLint uses flat config (`eslint.config.mjs`).** `next lint` does not exist in Next 15.
-- **No `next/font/google` dependency.** It fails in restricted/offline environments.
-
-### Verification (Cascada-specific)
-- `docker compose up` — Postgres, Redis, Temporal, Mailpit all healthy, none restarting
-- `npm run dev` — app boots at `http://localhost:3000`
-- Login with `admin@demofoods.com` / `cascada-demo-2026` — reaches `/dashboard`
-- Every `/dashboard/*` route returns 200 with no runtime overlay
-- `/api/auth/session` returns 200
-- `/api/tenants/current` returns 401 before login, 200 after
-- `/api/settings/data-sources` returns 200 with masked key statuses only — no secret values to the browser
-- `npm test` — paste the actual count
-- `npm run build` — completes with all routes in build output
-- `npx tsx scripts/smoke-pdf.ts` — produces a valid PDF
+If this cannot be written clearly, the task is too broad.
 
 ---
 
-## SESSION START CHECKLIST (MANDATORY)
+# 6. AUTONOMOUS DELIVERY RULES
 
-At the start of every session, before any work:
+These rules apply to any autonomous or semi-autonomous agent.
 
-1. Read this file fully. No skimming.
-2. Read `PROGRESS.md` to understand current state.
-3. Read `docs/CONTRACT.md` for the frozen spec.
-4. Read the relevant source files for the task — not summaries, the actual files.
-5. State which phase you are on and which pass (1-5) you are executing.
-6. State which 360-degree dimensions are in play for this task.
-7. Before declaring any phase done, run the Fresh-Clone Checkpoint.
-8. Before declaring any system "production-ready," walk every item in
-   PRODUCTION-READINESS DIMENSIONS (A through K) — addressed or accepted-risk,
-   no "not considered."
+## 6.1 One Task, One Branch, One Objective
+
+Each implementation task must have one narrow objective.
+
+Do not combine:
+
+* auth cleanup + UI redesign
+* ingestion fix + dashboard refactor
+* Stripe + PDF + email
+* ERP connector + Temporal workflow
+* lint cleanup + feature work
+
+If multiple issues are found, report them and propose separate tasks.
+
+## 6.2 No Self-Selected Roadmap Changes
+
+The agent may recommend a better path, but may not unilaterally change the roadmap.
+
+If the agent discovers the requested task is wrong, it must stop and report:
+
+```text
+Requested path:
+Problem with requested path:
+Evidence:
+Recommended alternative:
+Trade-offs:
+```
+
+## 6.3 No Broad Refactors Without Approval
+
+Forbidden unless explicitly approved:
+
+* renaming large directories
+* replacing auth systems
+* replacing state management
+* changing database strategy
+* replacing UI framework/components wholesale
+* reworking multiple unrelated modules
+* dependency upgrades unrelated to the task
+
+## 6.4 No Merge to Main Without Approval
+
+Agents may prepare changes and commits if authorized.
+
+Agents may not merge to `main` without explicit approval.
+
+## 6.5 Second-Pass Review Required
+
+Every implementation task requires a review pass before merge.
+
+The reviewer may be:
+
+* another AI agent
+* the same agent in review mode after resetting context
+* a human reviewer
+
+Review must check:
+
+* scope creep
+* security
+* tenant isolation
+* secrets
+* tests
+* failure paths
+* docs
+* final git status
+
+## 6.6 No Production Writes Without Explicit Approval
+
+Forbidden unless explicitly approved in the task:
+
+* write-mode ingestion
+* production database mutation
+* production payment capture
+* production email sending
+* production ERP sync
+* production workflow execution
+* production deployment
+
+Dry-run is the default for ingestion and external effects.
+
+## 6.7 No Secret Exposure
+
+Never print, commit, copy, summarize, or expose secrets.
+
+Allowed:
+
+```text
+KEY_NAME present: true
+KEY_NAME configured: false
+masked value: sk-...1234
+```
+
+Forbidden:
+
+```text
+full API key
+full database URL with password
+full private token
+.env content containing secrets
+```
+
+## 6.8 Required Final Report
+
+Every task must end with:
+
+```text
+Operating mode:
+Starting git state:
+Files changed:
+Commands run:
+Tests run:
+Manual proof:
+Data mutation performed:
+Secrets touched:
+External services called:
+Git diff summary:
+Final git status:
+What works:
+What does not work:
+Remaining risks:
+Recommended next task:
+```
 
 ---
 
-## VIOLATION PROTOCOL
+# 7. FIVE-PASS PROTOCOL
 
-If the agent catches itself doing ANY of the following, it MUST:
-1. Stop immediately.
-2. Acknowledge the violation explicitly to the user.
-3. Restart the current phase from Pass 1.
+Every implementation phase must follow five passes.
 
-Violations:
-- Declaring work done without running Pass 5 verifications → LAW 6
-- Starting Phase N+1 without integration-testing Phases 1..N → INTEGRATION LAW
-- Relying on an unverified assumption → LAW 1
-- Skipping red-team passes because "the plan looks good" → LAW 1
-- Calling `tsc` / `vitest` / `build` sufficient proof of done → LAW 6
-- Shipping a TODO, stub, or fake → LAWS 2, 7, 8
-- Testing only the happy path → LAW 9
-- Truncating output to save tokens at the cost of accuracy → LAW 5
-- Simplifying away a requirement because it is inconvenient → LAW 4
-- Flattening a complex system into a simple narrative → LAW 3
-- Stating an unverified fact as true → LAW 1
-- Fabricating evidence (test output, API responses, commit SHAs) → LAW 7
-- **Accepting the user's proposal without evaluating alternatives → CHIEF CODER ROLE**
-- **Recommending an approach without citing sources → RESEARCH-FIRST**
-- **Planning without covering all 10 dimensions of 360-degree planning → 360-DEGREE PLANNING**
-- **Declaring "production-ready" without walking all 11 dimensions (A-K) → PRODUCTION-READINESS**
-- **Rubber-stamping bad direction instead of pushing back → CHIEF CODER ROLE**
+## Pass 1 — Plan
+
+Before coding:
+
+* define objective
+* identify files likely to change
+* identify affected routes/functions/tables
+* identify tests to run
+* identify failure paths
+* identify assumptions
+* identify rollback plan
+
+## Pass 2 — Red-Team the Plan
+
+Attack the plan.
+
+For each assumption:
+
+```text
+Assumption:
+How it will be verified:
+What happens if false:
+```
+
+If an assumption cannot be verified, do not build on it.
+
+## Pass 3 — Build
+
+Implement only the scoped change.
+
+Rules:
+
+* no unrelated cleanup
+* no production stubs
+* no fake success
+* no broad refactor
+* no secret exposure
+* no unapproved migrations
+* no unapproved writes
+
+## Pass 4 — Red-Team the Build
+
+Before declaring completion, ask:
+
+* Did the change actually address the root cause?
+* Did it introduce cross-tenant risk?
+* Did it weaken auth?
+* Did it change an API contract?
+* Did frontend and backend response shapes match?
+* Did it handle empty/error states?
+* Did tests cover failure paths?
+* Did docs become inaccurate?
+* Did git show unexpected files?
+
+## Pass 5 — Verify
+
+Run required proof.
+
+At minimum for code changes:
+
+```powershell
+npm run typecheck
+npm run lint
+npm test
+npm run build
+```
+
+If the task touches PDF/report generation:
+
+```powershell
+npx tsx scripts/smoke-pdf.ts
+```
+
+If the task touches browser routes, run manual browser or E2E verification.
+
+If the task touches Docker/infrastructure, verify Docker services.
+
+If the task touches migrations, verify migration behavior from a clean database or fresh clone as required.
 
 ---
 
-## FINAL NOTE
+# 8. FRESH-CLONE CHECKPOINT
 
-This file was written because real projects shipped broken. Real users hit
-real failures. Real time was lost. Every rule above maps to a real defect
-that occurred because an agent skipped a verification, softened a claim,
-or shipped a TODO.
+A fresh-clone checkpoint is mandatory for:
 
-Do not be the agent that adds the next entry to this file.
+* install/setup baseline changes
+* Docker/infrastructure changes
+* Prisma migration changes
+* auth/session changes
+* deployment readiness
+* major feature completion
+* release candidates
+* any task that claims “new developer can install this”
 
-Follow the laws. Verify everything. Ship real work.
+Fresh-clone checkpoint means:
+
+1. Clone into a new clean directory.
+2. Follow README setup exactly.
+3. Start required services.
+4. Run migrations and seed.
+5. Start the app.
+6. Log in with documented credentials.
+7. Verify required routes.
+8. Run required tests/build.
+9. Report exact output.
+
+Fresh-clone checkpoint is not mandatory for minor documentation-only edits unless explicitly requested.
+
+---
+
+# 9. RESEARCH-FIRST RULES
+
+Before integrating or modifying any external service, the agent must verify:
+
+1. Installed package version.
+2. Current vendor documentation.
+3. Required auth method.
+4. Request shape.
+5. Response shape.
+6. Rate limits.
+7. Error behavior.
+8. Terms or usage limitations relevant to the implementation.
+9. Existing repo patterns.
+10. Security implications.
+
+Examples:
+
+* Do not assume Federal Register needs a key.
+* Do not assume LegiScan uses `api_key`.
+* Do not assume USDA FoodData Central is a regulatory source.
+* Do not assume an ERP connector works because a file exists.
+* Do not assume Stripe works because the dependency is installed.
+
+---
+
+# 10. SECURITY AND COMPLIANCE RULES
+
+Cascada deals with regulatory impact analysis. It must be conservative, auditable, and honest.
+
+## 10.1 Regulatory Output Boundary
+
+The product may identify:
+
+* potential exposure
+* source evidence
+* affected ingredients/products/customers
+* estimated operational impact
+* recommended review actions
+
+The product must not claim final legal compliance decisions without human review.
+
+Use language like:
+
+```text
+Potential exposure identified.
+Human regulatory/legal review required before action.
+```
+
+Avoid unsupported claims like:
+
+```text
+This product is compliant.
+This product is illegal.
+This formulation is approved.
+```
+
+## 10.2 Human Review Gate
+
+Any AI-generated regulatory interpretation, classification, decision package, or customer-facing report must preserve human review status.
+
+Required concepts:
+
+* draft
+* needs review
+* reviewed
+* approved
+* rejected
+* source evidence
+* reviewer identity
+* timestamp
+
+## 10.3 Tenant Isolation
+
+Tenant isolation is a hard security boundary.
+
+Forbidden:
+
+* trusting `x-tenant-id` from browser requests
+* trusting tenant ID in request body for protected user data
+* using `DEFAULT_TENANT_ID` in authenticated production paths
+* filtering only in the frontend
+* returning cross-tenant data because IDs are guessable
+
+Required:
+
+* derive tenant from authenticated session
+* enforce tenant scope server-side
+* test cross-tenant access failure
+* use database-level protections where applicable
+* audit all state-changing actions
+
+## 10.4 Credentials and Secrets
+
+Secrets must live in environment/secret manager systems, not normal frontend settings.
+
+Forbidden:
+
+* exposing secret values to browser
+* storing ERP credentials unencrypted
+* logging secrets
+* committing `.env`
+* printing full tokens
+* pasting secrets into reports
+
+Admin UI may show only:
+
+* configured/missing
+* masked label
+* last tested timestamp
+* health status
+* non-secret error summary
+
+## 10.5 Payments
+
+Payment logic must be treated as high-risk.
+
+Forbidden without explicit approval:
+
+* live Stripe mode
+* real charge capture
+* production webhook mutation
+* sending customer receipts
+* marking unpaid diagnostics as paid
+
+Required before payment is called working:
+
+* test-mode PaymentIntent
+* webhook signature verification
+* idempotency
+* failure handling
+* refund/cancel path
+* audit trail
+* no duplicate charge path
+
+## 10.6 Email and Notifications
+
+Forbidden without explicit approval:
+
+* sending production customer emails
+* sending regulatory conclusions automatically
+* sending reports before payment/review gates
+
+Required:
+
+* test/sandbox mode first
+* clear recipient control
+* audit log
+* retry/idempotency
+* failure state
+
+## 10.7 External APIs and Lawful Use
+
+The agent must respect API terms, rate limits, and data-use boundaries.
+
+Forbidden:
+
+* scraping where prohibited
+* bypassing rate limits
+* using credentials outside intended purpose
+* storing data in violation of provider terms
+* mislabeling source type or authority
+
+---
+
+# 11. CASCADA CURRENT PRODUCT TRUTH
+
+Until updated by a newer verified audit, treat Cascada as:
+
+```text
+A Next.js SaaS application with a working install/auth/demo baseline and several real backend subsystems started, but not yet an end-to-end production SaaS.
+```
+
+Currently proven at a high level:
+
+* install/auth baseline exists
+* seeded demo login exists
+* dashboard routes exist
+* settings/data-source masked status exists
+* regulatory ingestion has bounded dry-run architecture
+* Federal Register is public/no-key
+* openFDA enforcement is the valid initial food signal
+* USDA FoodData Central is reference/enrichment data, not regulatory law
+* PDF smoke exists as a scaffold
+* unit/regression tests exist
+
+Not yet fully proven as production-ready:
+
+* complete tenant isolation
+* database-level RLS through committed migrations
+* full cascade graph persistence and dashboard reflection
+* live regulatory write-mode acceptance
+* LegiScan dry-run parser correctness
+* ERP sync end to end
+* AI agent workflows end to end
+* Temporal worker/runtime execution
+* Stripe payment lifecycle
+* S3/report delivery
+* paid diagnostic lifecycle
+* Playwright/E2E browser coverage
+* production deployment readiness
+
+The agent must not describe the product as production-ready until every production-readiness gate is satisfied or explicitly accepted as risk by the user.
+
+---
+
+# 12. CASCADA-SPECIFIC HARD RULES
+
+## 12.1 Regulatory Sources
+
+Federal Register:
+
+* public no-key API
+* do not require `FEDERAL_REGISTER_API_KEY`
+* do not show it as missing key
+* use correct Federal Register document search semantics
+
+openFDA:
+
+* food enforcement endpoint is the valid initial source
+* do not invent nonexistent endpoints
+* source URLs must not expose API keys
+* treat as enforcement/recall signal, not broad regulatory law
+
+USDA FoodData Central:
+
+* reference/enrichment source
+* not regulatory law
+* not an international regulation source
+* must not trigger cascade analysis by itself
+
+LegiScan:
+
+* uses `key=` parameter
+* health passing does not prove dry-run transform works
+* dry-run parser must handle actual live response shape
+* do not print the key
+* do not run broad ingestion without approval
+
+## 12.2 Ingestion Safety
+
+Default mode is dry-run.
+
+Write mode requires explicit approval.
+
+Write-mode ingestion must:
+
+* be bounded
+* require reviewed source IDs
+* create `PipelineRun` rows
+* enforce dedupe by `sourceType + sourceId`
+* store source evidence
+* expose no secrets
+* be idempotent
+* prove dashboard/API retrieval after write
+
+Forbidden:
+
+* broad write-mode ingestion
+* unreviewed writes
+* silent writes during tests
+* write mode hidden behind ambiguous commands
+
+## 12.3 Unsafe Routes
+
+Routes identified as unsafe or partially unsafe by audit must not be executed mutatively until fixed or explicitly approved.
+
+High-risk areas include:
+
+```text
+POST /api/regulatory/sources/:id/process
+POST /api/regulatory/sources/:id/validate
+POST /api/ingredients/match-rule-substances
+POST /api/cascade/graph/rebuild
+POST /api/cascade/triggers/:id/analyze
+ERP sync/health routes that trust headers instead of session auth
+Agent routes that trust tenant headers instead of session auth
+Old full pipeline helpers if exposed without bounded gates
+```
+
+The preferred next action is to secure or disable unsafe mutation paths before expanding features.
+
+## 12.4 Auth Rules
+
+Required:
+
+* real password hashing
+* session-derived tenant
+* role checks for admin/operational endpoints
+* no fake bearer token auth in production paths
+* cookies with correct security behavior
+* `/api/auth/session` compatibility
+* `/api/tenants/current` protected behavior
+
+Demo credentials may exist only as seeded local/demo accounts.
+
+## 12.5 Infrastructure Rules
+
+Required:
+
+* Docker image tags must be verified before changes
+* Temporal DB driver must use valid Temporal-supported driver
+* no fixed `container_name` in compose unless explicitly justified
+* migrations must be committed
+* setup instructions must work from fresh clone
+* no dependency on unavailable remote fonts in restricted environments
+
+---
+
+# 13. BUILD ROADMAP DISCIPLINE
+
+The product must be completed in stages. Do not jump to later-stage work while earlier safety gates are open.
+
+## Stage A — Stabilize Usable Demo Shell
+
+Goal:
+
+* all user-facing routes render honestly
+* broken UI/API contracts fixed or hidden
+* no fake “working” affordances
+* unsafe mutations blocked or protected
+
+Do not build advanced features here.
+
+## Stage B — Prove Regulatory Ingestion and Source Evidence
+
+Goal:
+
+* bounded dry-run verified
+* LegiScan parser fixed
+* one reviewed write smoke
+* dedupe proved
+* source evidence visible
+
+Do not run broad ingestion.
+
+## Stage C — Prove Cascade Graph on Seeded Data
+
+Goal:
+
+* one regulation/source maps to substance
+* substance maps to ingredient
+* ingredient maps to formulation
+* formulation maps to product/SKU
+* product maps to customer
+* exposure appears in dashboard/API
+
+Do not add AI complexity before deterministic proof exists.
+
+## Stage D — Prove One Real External Integration
+
+Goal:
+
+* one ERP connector end to end
+* secure credential handling
+* sandbox/read-only sync
+* mapped data lands in DB
+* errors and retries handled
+
+Do not build five connectors before one is proven.
+
+## Stage E — Prove Diagnostic Product End to End
+
+Goal:
+
+* Stripe test payment
+* diagnostic row
+* analysis workflow
+* PDF/report generation
+* storage/delivery
+* admin review
+* failure handling
+
+Do not market or expose paid diagnostic as real until this is complete.
+
+## Stage F — Harden Tenant/Auth/Security
+
+Goal:
+
+* remove header/body tenant trust
+* enforce session tenant everywhere
+* add cross-tenant tests
+* add RLS/migration proof or remove RLS claims
+* audit logs for state changes
+
+## Stage G — Add E2E/Browser Tests
+
+Goal:
+
+* Playwright or equivalent
+* login
+* dashboard routes
+* settings/data sources
+* integrations
+* agent page
+* diagnostic page
+* failure overlays caught
+
+## Stage H — Production Deployment Readiness
+
+Goal:
+
+* CI
+* environment separation
+* secret manager
+* observability
+* backups
+* rollback
+* staging soak
+* deployment runbook
+* security review
+
+No production-ready claim before this stage passes.
+
+---
+
+# 14. VERIFICATION COMMANDS
+
+Use the commands appropriate to the task.
+
+Baseline commands:
+
+```powershell
+npm run typecheck
+npm run lint
+npm test
+npm run build
+```
+
+PDF/report smoke:
+
+```powershell
+npx tsx scripts/smoke-pdf.ts
+```
+
+Docker/infrastructure:
+
+```powershell
+docker compose down --volumes --remove-orphans
+docker compose pull
+docker compose up -d
+docker ps
+```
+
+Database:
+
+```powershell
+npx prisma generate
+npx prisma migrate dev
+npm run db:seed
+```
+
+App runtime:
+
+```powershell
+npm run dev
+```
+
+Required manual checks when relevant:
+
+* open `http://localhost:3000`
+* log in with seeded demo credentials
+* verify `/api/auth/session`
+* verify `/api/tenants/current`
+* verify every touched dashboard route
+* check browser console/runtime overlay
+* verify frontend renders real API response shape
+
+Do not claim browser success from build output alone.
+
+---
+
+# 15. TESTING REQUIREMENTS
+
+## 15.1 Unit Tests
+
+Use for:
+
+* pure functions
+* transforms
+* validators
+* scoring logic
+* mappers
+* normalizers
+
+Do not present unit tests as proof of live integration.
+
+## 15.2 Integration Tests
+
+Use for:
+
+* real route handlers
+* database reads/writes
+* auth enforcement
+* tenant isolation
+* idempotency
+* migrations
+* API contract behavior
+
+## 15.3 E2E / Browser Tests
+
+Required for:
+
+* login flows
+* dashboard hydration
+* user-facing workflows
+* route navigation
+* payment UX
+* diagnostic UX
+* settings/integrations UX
+
+## 15.4 Failure-Path Tests
+
+Required for high-risk work:
+
+* unauthenticated
+* unauthorized role
+* wrong tenant
+* invalid body
+* missing env
+* external API failure
+* duplicate write
+* empty data
+* malformed data
+
+---
+
+# 16. DATABASE AND MIGRATION RULES
+
+Migrations are high-risk.
+
+Before adding/changing migrations:
+
+* inspect current schema
+* inspect existing migrations
+* explain data impact
+* explain rollback strategy
+* test on clean database or fresh clone when required
+
+Required for tenant/security tables:
+
+* tenant IDs on tenant-owned data
+* foreign keys
+* indexes for query filters
+* uniqueness constraints for dedupe
+* audit fields where needed
+
+Do not claim RLS exists unless committed migrations establish it or the runtime initialization is proved.
+
+---
+
+# 17. API AND FRONTEND CONTRACT RULES
+
+Every frontend call must match backend response shape.
+
+Before changing either side:
+
+1. Inspect route handler.
+2. Inspect frontend client/hook/component.
+3. Identify expected request body.
+4. Identify actual response shape.
+5. Test empty/error states.
+6. Add regression tests.
+
+Common defect to avoid:
+
+```text
+Backend returns { triggers: [...] }
+Frontend expects data.allTriggers
+```
+
+A route returning `200` does not prove the page works.
+
+---
+
+# 18. OBSERVABILITY AND AUDIT RULES
+
+State-changing actions should produce enough evidence to debug and audit.
+
+For high-risk operations, record:
+
+* tenant
+* user
+* action
+* target resource
+* timestamp
+* result
+* failure reason
+* external source ID
+* correlation/request ID where available
+
+High-risk operations include:
+
+* ingestion writes
+* rule validation
+* cascade graph rebuild
+* ERP sync
+* AI regulatory interpretation
+* diagnostic report generation
+* payment events
+* email delivery
+* workflow state transitions
+
+---
+
+# 19. PRODUCTION-READINESS GATES
+
+Do not declare production readiness unless each area is addressed or explicitly accepted as risk.
+
+## Security
+
+* auth enforced
+* role checks
+* tenant isolation
+* CSRF/state-changing endpoint strategy
+* input validation
+* output secret masking
+* dependency audit reviewed
+* audit logging
+
+## Multi-Tenancy
+
+* session-derived tenant
+* cross-tenant tests
+* database constraints
+* no trusted browser tenant header
+* tenant deletion/export plan where needed
+
+## Data Integrity
+
+* migrations committed
+* constraints/indexes
+* transactions
+* idempotency
+* backups/restore plan before production
+
+## Integrations
+
+* real sandbox proof
+* credential storage
+* error handling
+* rate limits
+* retries
+* idempotency
+
+## AI/Regulatory
+
+* source evidence
+* no unsupported legal conclusions
+* human review gate
+* audit trail
+* hallucination controls
+* clear uncertainty language
+
+## Payments
+
+* test-mode proof
+* webhook signature verification
+* idempotency
+* failure/refund/cancel path
+* no duplicate charge
+
+## Reports/Storage
+
+* real report content
+* secure storage
+* access control
+* expiration/revocation
+* delivery proof
+
+## Workflows
+
+* worker running
+* activities registered
+* retries configured
+* results persisted
+* human approval gates
+
+## E2E Testing
+
+* login
+* dashboard
+* ingestion review
+* cascade proof
+* integration proof
+* diagnostic proof
+
+## Operations
+
+* CI
+* deployment runbook
+* rollback
+* logs/metrics/errors
+* environment separation
+* secret manager
+
+---
+
+# 20. GIT AND COMMIT RULES
+
+Before changes:
+
+```powershell
+git status --short
+```
+
+After changes:
+
+```powershell
+git diff --stat
+git diff --check
+git status --short
+```
+
+Commit rules:
+
+* commit only scoped files
+* do not commit `.env`
+* do not commit generated junk
+* do not commit unrelated formatting churn
+* do not commit reports unless requested
+* commit message must describe actual change
+* final report must include commit SHA if committed
+
+If unexpected files are dirty, stop and report.
+
+---
+
+# 21. DEPENDENCY RULES
+
+Do not add or upgrade dependencies casually.
+
+Before dependency changes:
+
+1. Explain why existing dependencies are insufficient.
+2. Verify package name and current version.
+3. Check compatibility with current Next.js/React/Prisma/etc.
+4. Check license/security posture.
+5. Update lockfile intentionally.
+6. Run full verification.
+
+No dependency change is allowed in a task unless explicitly in scope.
+
+---
+
+# 22. DOCUMENTATION RULES
+
+Docs must distinguish:
+
+```text
+Current behavior
+Verified proof
+Target architecture
+Future plan
+Known risk
+```
+
+Do not let docs overstate the product.
+
+README must not imply production readiness unless production gates are satisfied.
+
+Architecture docs may describe the goal, but must be labeled as target architecture if not implemented.
+
+Task ledgers must not fabricate completed work.
+
+---
+
+# 23. WHEN TO STOP
+
+Stop immediately if:
+
+* repo is dirty unexpectedly
+* local branch does not match expected baseline
+* secrets appear in output
+* task requires production write without approval
+* tests reveal broad unrelated failure
+* requested work violates tenant/security boundaries
+* external docs contradict the plan
+* implementation requires scope expansion
+* migration risk is unclear
+* the agent cannot verify a core assumption
+
+Stopping with a truthful report is better than continuing into unsafe work.
+
+---
+
+# 24. VIOLATION PROTOCOL
+
+If a violation occurs:
+
+1. Stop work.
+2. Identify the violated rule.
+3. State what happened.
+4. State what was changed, if anything.
+5. State current git status.
+6. Recommend recovery steps.
+7. Do not continue until the user approves the recovery path.
+
+---
+
+# 25. FINAL REPORT TEMPLATE
+
+Every task must end with this structure:
+
+```text
+Task ID:
+Operating mode:
+Objective:
+
+Starting state:
+- branch:
+- HEAD:
+- expected baseline:
+- git status:
+
+Files changed:
+- ...
+
+Commands run:
+- command:
+  result:
+
+Tests:
+- typecheck:
+- lint:
+- unit:
+- build:
+- E2E/manual:
+- other:
+
+Manual proof:
+- ...
+
+Data mutation:
+- none / describe exactly
+
+External services called:
+- none / describe exactly
+
+Secrets:
+- none exposed
+- presence checks only / describe
+
+Git diff summary:
+- ...
+
+Final state:
+- branch:
+- HEAD:
+- git status:
+
+What works:
+- ...
+
+What does not work:
+- ...
+
+Remaining risks:
+- ...
+
+Recommended next task:
+- ...
+```
+
+---
+
+# 26. FINAL PRINCIPLE
+
+The project must advance by verified truth, not momentum.
+
+A smaller verified step is better than a large impressive patch.
+
+Do not ship theater.
+
+Do not hide uncertainty.
+
+Do not fake proof.
+
+Build Cascada as a real SaaS, stage by stage, with evidence at every gate.
