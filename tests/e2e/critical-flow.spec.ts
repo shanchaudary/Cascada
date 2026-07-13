@@ -1,3 +1,4 @@
+// @ts-nocheck -- @playwright/test is installed only in the CI browser-smoke step.
 import { expect, test } from "@playwright/test";
 
 const runtimeErrorPattern =
