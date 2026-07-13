@@ -1,0 +1,122 @@
+name: Cascada CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cascada-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify application
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: cascada
+          POSTGRES_PASSWORD: cascada_ci_password
+          POSTGRES_DB: cascada
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U cascada -d cascada"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      CI: true
+      DATABASE_URL: postgresql://cascada:cascada_ci_password@127.0.0.1:5432/cascada
+      DATABASE_URL_DIRECT: postgresql://cascada:cascada_ci_password@127.0.0.1:5432/cascada
+      REDIS_URL: redis://127.0.0.1:6379
+      NEXTAUTH_SECRET: cascada-ci-nextauth-secret-32-characters
+      NEXTAUTH_URL: http://127.0.0.1:3000
+      NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
+      APP_URL: http://127.0.0.1:3000
+      CASCADA_DEV_AUTH: true
+      ENCRYPTION_KEY: cascada-ci-encryption-key-32-chars
+      TEMPORAL_ADDRESS: 127.0.0.1:7233
+      TEMPORAL_NAMESPACE: cascada
+      TEMPORAL_TASK_QUEUE: cascada-tasks
+      LOG_LEVEL: warn
+      PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Validate Prisma schema
+        run: npx prisma validate
+
+      - name: Apply committed migrations
+        run: npx prisma migrate deploy
+
+      - name: Seed deterministic test data
+        run: npm run db:seed
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint without increasing the accepted warning ceiling
+        run: npm run lint -- --max-warnings=148
+
+      - name: Run unit and regression tests
+        run: npm test
+
+      - name: Reject high or critical production dependency findings
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Build production application
+        run: npm run build
+
+      - name: Install pinned Playwright runner without mutating package files
+        run: npm install --no-save --package-lock=false @playwright/test@1.55.0
+
+      - name: Install Chromium and system dependencies
+        run: npx playwright install --with-deps chromium
+
+      - name: Run critical browser smoke tests
+        run: npx playwright test
+
+      - name: Upload Playwright evidence on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-evidence
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
