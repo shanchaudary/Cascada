@@ -9,7 +9,7 @@ on:
       ci_run_id:
         description: Existing completed consumer CI workflow run ID
         required: true
-        type: number
+        type: string
 
 jobs:
   supervise:
@@ -21,7 +21,7 @@ jobs:
       statuses: write
     uses: shanchaudary/shans-ai-software-factory/.github/workflows/reusable-supervise.yml@55259af5a9ce8154c5729d9cc1695b5d39c8f7dc
     with:
-      ci_run_id: ${{ github.event_name == 'workflow_dispatch' && inputs.ci_run_id || github.event.workflow_run.id }}
+      ci_run_id: ${{ github.event_name == 'workflow_dispatch' && fromJSON(inputs.ci_run_id) || github.event.workflow_run.id }}
       factory_ref: 55259af5a9ce8154c5729d9cc1695b5d39c8f7dc
     secrets:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

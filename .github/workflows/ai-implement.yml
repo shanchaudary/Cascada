@@ -8,7 +8,7 @@ on:
       issue_number:
         description: Existing authorized issue number
         required: true
-        type: number
+        type: string
 
 jobs:
   implement:
@@ -21,7 +21,7 @@ jobs:
       statuses: write
     uses: shanchaudary/shans-ai-software-factory/.github/workflows/reusable-implement.yml@55259af5a9ce8154c5729d9cc1695b5d39c8f7dc
     with:
-      issue_number: ${{ github.event_name == 'workflow_dispatch' && inputs.issue_number || github.event.issue.number }}
+      issue_number: ${{ github.event_name == 'workflow_dispatch' && fromJSON(inputs.issue_number) || github.event.issue.number }}
       factory_ref: 55259af5a9ce8154c5729d9cc1695b5d39c8f7dc
     secrets:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
