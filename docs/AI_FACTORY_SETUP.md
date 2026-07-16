@@ -8,7 +8,7 @@ This document defines Cascada's repository-side installation of the project-agno
 - `AGENTS.md` is the standing repository law.
 - `.ai-factory/project.json` defines Cascada's real setup, verification, context, limits, models, and allowed actors.
 - Both thin caller workflows must reference the same full 40-character factory commit.
-- The accepted central release pin is `55259af5a9ce8154c5729d9cc1695b5d39c8f7dc`.
+- The accepted central release pin is `15f929d6386e502b601878fa2bc8fa3bc9bca851`.
 - The pin is the reviewed merge commit on the central factory's `main` branch.
 
 Codex may create a bounded branch, commits, and a draft pull request for an authorized issue. The factory may not merge, deploy, access production credentials, or perform production writes.

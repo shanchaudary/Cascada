@@ -19,10 +19,10 @@ jobs:
       issues: write
       pull-requests: write
       statuses: write
-    uses: shanchaudary/shans-ai-software-factory/.github/workflows/reusable-supervise.yml@55259af5a9ce8154c5729d9cc1695b5d39c8f7dc
+    uses: shanchaudary/shans-ai-software-factory/.github/workflows/reusable-supervise.yml@15f929d6386e502b601878fa2bc8fa3bc9bca851
     with:
       ci_run_id: ${{ github.event_name == 'workflow_dispatch' && fromJSON(inputs.ci_run_id) || github.event.workflow_run.id }}
-      factory_ref: 55259af5a9ce8154c5729d9cc1695b5d39c8f7dc
+      factory_ref: 15f929d6386e502b601878fa2bc8fa3bc9bca851
     secrets:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ZAI_API_KEY: ${{ secrets.ZAI_API_KEY }}
