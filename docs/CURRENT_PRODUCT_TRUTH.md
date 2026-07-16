@@ -77,7 +77,7 @@ A route, class, schema, UI panel, or passing unit test does not by itself prove 
 - Production deployment, backups, restore, rollback, alerting, and incident response are not accepted.
 - The current locked install reports 11 moderate production dependency findings.
 - The delivery-foundation CI measured 133 lint warnings. Its temporary non-regression ceiling is not a production-readiness pass; the AI factory's generated-change verification requires zero warnings.
-- The AI software factory consumer adapter is proposed on draft PR #2 and pinned to factory candidate commit `98033aa4780fac52a58b6aab7a692489e1e25e96`. No live factory task has passed yet.
+- The AI software factory consumer adapter is proposed on draft PR #2 and pinned to accepted factory release commit `be5412f3e3e85ecdf40d65078cddeae5db5b3a20`. No live factory task has passed yet.
 
 ## Current release classification
 

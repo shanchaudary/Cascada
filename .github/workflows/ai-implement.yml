@@ -19,9 +19,9 @@ jobs:
       issues: write
       pull-requests: write
       statuses: write
-    uses: shanchaudary/shans-ai-software-factory/.github/workflows/reusable-implement.yml@98033aa4780fac52a58b6aab7a692489e1e25e96
+    uses: shanchaudary/shans-ai-software-factory/.github/workflows/reusable-implement.yml@be5412f3e3e85ecdf40d65078cddeae5db5b3a20
     with:
       issue_number: ${{ github.event_name == 'workflow_dispatch' && inputs.issue_number || github.event.issue.number }}
-      factory_ref: 98033aa4780fac52a58b6aab7a692489e1e25e96
+      factory_ref: be5412f3e3e85ecdf40d65078cddeae5db5b3a20
     secrets:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
