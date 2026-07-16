@@ -20,11 +20,15 @@ A bounded issue can travel through branch, PR, deterministic CI, independent rev
 - current-product-truth document;
 - delivery operating model;
 - protected-main ruleset;
-- Codex Cloud repository/environment verification.
+- commit-pinned AI factory consumer adapter;
+- authorized-actor and issue-label execution gate;
+- OpenAI implementation plus GLM independent-review loop;
+- exact factory-dispatched CI provenance checks;
+- GitHub repository secret and protected-main verification.
 
 ### Exit gate
 
-One low-risk trial issue completes issue → Codex → PR → CI → independent review → explicitly approved merge.
+One material, non-documentation Cascada issue completes issue → Codex → draft PR → authoritative CI → GLM independent review → repair loop → explicitly approved merge. A docs-only smoke may test wiring but cannot satisfy this exit gate.
 
 ## M1 — Authentication and tenant authority
 

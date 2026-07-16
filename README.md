@@ -28,9 +28,9 @@ This baseline was verified on July 7, 2026 from a true fresh GitHub clone with n
 
 Known backlog risks:
 
-- 11 moderate npm audit findings
-- 148 lint warnings
-- No Playwright/E2E suite
+- 11 moderate npm audit findings in the current locked production dependency graph
+- 133 measured lint warnings; the delivery-foundation branch prevents regression, while the factory's generated-change gate requires zero
+- The delivery-foundation branch adds a committed Playwright critical-flow suite; broader product E2E coverage is still required
 - Docker host ports still require only one local stack on default ports unless a clone overrides ports
 - PDF smoke validates a 9-page scaffold, not the full paid diagnostic lifecycle
 
@@ -142,10 +142,11 @@ npm run typecheck
 npm run lint
 npm test
 npm run build
+npm run test:e2e
 npx tsx scripts/smoke-pdf.ts
 ```
 
-`npm test` currently runs the committed Vitest unit/regression suite. No Playwright/E2E dependency or config is currently committed, so do not claim browser E2E coverage for this branch.
+`npm test` runs the committed Vitest unit/regression suite. The delivery-foundation branch adds a narrow Playwright authentication/dashboard smoke through `npm run test:e2e`; it is not evidence that the complete regulatory, ERP, billing, workflow, or tenant-isolation product paths work end to end.
 
 Dashboard verification must distinguish route availability from hydrated client render:
 

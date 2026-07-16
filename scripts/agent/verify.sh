@@ -12,7 +12,7 @@ export ENCRYPTION_KEY="${ENCRYPTION_KEY:-cascada-agent-encryption-key-32}"
 export LOG_LEVEL="${LOG_LEVEL:-warn}"
 
 npm run typecheck
-npm run lint -- --max-warnings=148
+npm run lint -- --max-warnings=0
 npm test
 npx prisma validate
 npm audit --omit=dev --audit-level=high

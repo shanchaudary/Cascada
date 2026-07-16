@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "project_id": "cascada",
+  "default_branch": "main",
+  "ci_workflow": "ci.yml",
+  "setup_commands": ["npm ci", "npx prisma generate"],
+  "verification_commands": ["bash scripts/agent/verify.sh"],
+  "context_files": [
+    "AGENTS.md",
+    "README.md",
+    "docs/CURRENT_PRODUCT_TRUTH.md",
+    "docs/DELIVERY_OPERATING_MODEL.md",
+    "docs/CASCADA_MILESTONE_BACKLOG.md"
+  ],
+  "allowed_actors": ["shanchaudary"],
+  "branch_prefix": "ai-factory/",
+  "protected_paths": [],
+  "limits": {
+    "max_changed_files": 120,
+    "max_patch_bytes": 4194304,
+    "max_context_bytes": 2097152,
+    "max_review_batch_bytes": 120000,
+    "max_repair_cycles": 3
+  },
+  "implementation": {
+    "model": "gpt-5.6",
+    "reasoning_effort": "high"
+  },
+  "review": {
+    "model": "glm-5.2",
+    "blocking_severities": ["P0", "P1", "P2"]
+  }
+}

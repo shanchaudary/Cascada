@@ -67,15 +67,17 @@ A route, class, schema, UI panel, or passing unit test does not by itself prove 
 
 ## Known unproven or incomplete areas
 
-- No previously committed GitHub Actions CI workflow was found at the creation of the delivery-foundation branch.
-- No previously committed Playwright browser E2E suite was present.
+- No GitHub Actions CI workflow existed on `main` when the delivery-foundation branch was created; draft PR #2 adds one but it is not accepted until reviewed, merged, protected, and exercised.
+- No Playwright browser E2E suite existed on `main` when the delivery-foundation branch was created; draft PR #2 adds a narrow authentication/dashboard smoke, not complete product E2E proof.
 - Cross-tenant isolation has not been accepted through a complete adversarial API and browser suite.
 - One full regulation → substance → ingredient → formulation → product → customer → exposure → decision chain has not been accepted end to end.
 - No ERP sandbox sync has been accepted.
 - No complete Temporal worker/retry/recovery lifecycle has been accepted.
 - No complete Stripe test payment → webhook → diagnostic → report → delivery lifecycle has been accepted.
 - Production deployment, backups, restore, rollback, alerting, and incident response are not accepted.
-- The README records 11 moderate npm audit findings and 148 lint warnings as baseline debt.
+- The current locked install reports 11 moderate production dependency findings.
+- The delivery-foundation CI measured 133 lint warnings. Its temporary non-regression ceiling is not a production-readiness pass; the AI factory's generated-change verification requires zero warnings.
+- The AI software factory consumer adapter is proposed on draft PR #2 and pinned to factory candidate commit `3eef9707c3cd4a109925f31639df0d9ecd175c32`. No live factory task has passed yet.
 
 ## Current release classification
 
@@ -98,6 +100,7 @@ Regulated-customer ready: NO
 8. Temporal recovery and human-approval behavior is proven.
 9. Staging deployment, rollback, backup, restore, logging, and alerting are proven.
 10. Security, privacy, and regulatory-position reviews are accepted.
+11. The supervised AI delivery loop passes a material, non-documentation Cascada issue with exact CI and independent-review evidence.
 
 ## Truth-maintenance rule
 

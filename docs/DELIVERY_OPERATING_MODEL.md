@@ -224,4 +224,8 @@ Raw command logs remain attached to PRs and CI artifacts rather than being repea
 
 ## Current implementation constraint
 
-GitHub repository rulesets and Codex Cloud environment settings require account-level configuration. Repository files define the required behavior, but those account settings must be verified separately before calling the delivery system complete.
+The GitHub Actions factory adapter is repository-defined and pinned to an exact reviewed factory commit. GitHub repository rulesets and repository secrets remain account-level controls and must be verified separately before calling the delivery system complete.
+
+The adapter requires `OPENAI_API_KEY` and `ZAI_API_KEY` as GitHub repository secrets. Secret values must never be committed, pasted into issues, or relayed through chat. The factory cannot merge or deploy, and a successful generated PR remains draft until the required human decision.
+
+The model runner has no trusted database or Redis service. Its local commands therefore cover install, schema validation, typecheck, strict lint, unit/regression tests, production dependency audit, and build. Cascada CI remains authoritative for disposable PostgreSQL/Redis services, committed migrations, deterministic seed, and Playwright browser proof.
