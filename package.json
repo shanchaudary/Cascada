@@ -22,6 +22,7 @@
     "test": "vitest run",
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration --passWithNoTests",
+    "test:e2e": "playwright test",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "docker:up": "docker compose up -d",
@@ -55,6 +56,7 @@
     "zustand": "^5.0.5"
   },
   "devDependencies": {
+    "@playwright/test": "1.61.1",
     "@tailwindcss/postcss": "^4.1.10",
     "@types/node": "^24.0.10",
     "@types/react": "^19.1.8",

@@ -1,0 +1,59 @@
+name: Independent review / red team
+description: Review another agent's pull request without silently editing it
+title: "[Review] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Operate in REVIEW / RED TEAM mode. Inspect the exact pull request head. Do not fix findings unless a separate implementation task authorizes it.
+  - type: input
+    id: pr
+    attributes:
+      label: Pull request
+      placeholder: "#123"
+    validations:
+      required: true
+  - type: textarea
+    id: contract
+    attributes:
+      label: Objective and acceptance criteria
+      description: Copy the governing issue objective and criteria.
+    validations:
+      required: true
+  - type: textarea
+    id: review-scope
+    attributes:
+      label: Required review scope
+      description: Include security, tenant isolation, data integrity, failure paths, tests, migrations, secrets, and documentation truth as applicable.
+    validations:
+      required: true
+  - type: textarea
+    id: commands
+    attributes:
+      label: Required verification commands
+    validations:
+      required: true
+  - type: textarea
+    id: findings
+    attributes:
+      label: Findings format
+      value: |
+        For every finding include:
+        - severity
+        - blocking or non-blocking
+        - file and line or exact behavior
+        - evidence
+        - required correction
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Review constraints
+      options:
+        - label: I will not approve based only on the builder's summary.
+          required: true
+        - label: I will distinguish unit, integration, browser, and live-service proof.
+          required: true
+        - label: I will not merge or deploy.
+          required: true

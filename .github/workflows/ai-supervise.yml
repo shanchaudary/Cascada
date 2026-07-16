@@ -1,0 +1,28 @@
+name: AI factory supervisor
+
+on:
+  workflow_run:
+    workflows: ["Cascada CI"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      ci_run_id:
+        description: Existing completed consumer CI workflow run ID
+        required: true
+        type: string
+
+jobs:
+  supervise:
+    permissions:
+      actions: write
+      contents: write
+      issues: write
+      pull-requests: write
+      statuses: write
+    uses: shanchaudary/shans-ai-software-factory/.github/workflows/reusable-supervise.yml@15f929d6386e502b601878fa2bc8fa3bc9bca851
+    with:
+      ci_run_id: ${{ github.event_name == 'workflow_dispatch' && fromJSON(inputs.ci_run_id) || github.event.workflow_run.id }}
+      factory_ref: 15f929d6386e502b601878fa2bc8fa3bc9bca851
+    secrets:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ZAI_API_KEY: ${{ secrets.ZAI_API_KEY }}

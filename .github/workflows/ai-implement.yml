@@ -1,0 +1,27 @@
+name: AI factory implementation
+
+on:
+  issues:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Existing authorized issue number
+        required: true
+        type: string
+
+jobs:
+  implement:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.label.name == 'ai:build' }}
+    permissions:
+      actions: write
+      contents: write
+      issues: write
+      pull-requests: write
+      statuses: write
+    uses: shanchaudary/shans-ai-software-factory/.github/workflows/reusable-implement.yml@15f929d6386e502b601878fa2bc8fa3bc9bca851
+    with:
+      issue_number: ${{ github.event_name == 'workflow_dispatch' && fromJSON(inputs.issue_number) || github.event.issue.number }}
+      factory_ref: 15f929d6386e502b601878fa2bc8fa3bc9bca851
+    secrets:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

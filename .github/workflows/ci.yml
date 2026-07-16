@@ -1,0 +1,128 @@
+name: Cascada CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      factory_pr:
+        description: Factory-managed pull request number
+        required: false
+        type: string
+      factory_issue:
+        description: Factory-authorized issue number
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cascada-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify application
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    services:
+      postgres:
+        image: postgres:16-alpine@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
+        env:
+          POSTGRES_USER: cascada
+          POSTGRES_PASSWORD: cascada_ci_password
+          POSTGRES_DB: cascada
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U cascada -d cascada"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      CI: true
+      DATABASE_URL: postgresql://cascada:cascada_ci_password@127.0.0.1:5432/cascada
+      DATABASE_URL_DIRECT: postgresql://cascada:cascada_ci_password@127.0.0.1:5432/cascada
+      REDIS_URL: redis://127.0.0.1:6379
+      NEXTAUTH_SECRET: cascada-ci-nextauth-secret-32-characters
+      NEXTAUTH_URL: http://127.0.0.1:3000
+      NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
+      APP_URL: http://127.0.0.1:3000
+      CASCADA_DEV_AUTH: true
+      ENCRYPTION_KEY: cascada-ci-encryption-key-32-chars
+      TEMPORAL_ADDRESS: 127.0.0.1:7233
+      TEMPORAL_NAMESPACE: cascada
+      TEMPORAL_TASK_QUEUE: cascada-tasks
+      LOG_LEVEL: warn
+      PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Validate Prisma schema
+        run: npx prisma validate
+
+      - name: Apply committed migrations
+        run: npx prisma migrate deploy
+
+      - name: Seed deterministic test data
+        run: npm run db:seed
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint without increasing the measured warning baseline
+        run: npm run lint -- --max-warnings=133
+
+      - name: Run unit and regression tests
+        run: npm test
+
+      - name: Reject high or critical production dependency findings
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Build production application
+        run: npm run build
+
+      - name: Install Chromium and system dependencies
+        run: npx playwright install --with-deps chromium
+
+      - name: Run critical browser smoke tests
+        run: npm run test:e2e
+
+      - name: Upload Playwright evidence on failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-evidence
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14

@@ -1,0 +1,91 @@
+name: Governed implementation task
+description: One bounded implementation objective for an AI coding agent
+title: "[Implementation] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Read `AGENTS.md` before work. One issue, one branch, one objective. Do not merge or deploy without explicit approval.
+  - type: input
+    id: objective
+    attributes:
+      label: Objective
+      description: State the single outcome this task must produce.
+    validations:
+      required: true
+  - type: textarea
+    id: verified-baseline
+    attributes:
+      label: Verified baseline
+      description: Include branch, commit SHA, current behavior, and exact evidence.
+    validations:
+      required: true
+  - type: textarea
+    id: business-reason
+    attributes:
+      label: Why this matters
+    validations:
+      required: true
+  - type: dropdown
+    id: risk
+    attributes:
+      label: Risk
+      options:
+        - GREEN
+        - YELLOW
+        - RED
+        - BLACK — do not execute
+    validations:
+      required: true
+  - type: textarea
+    id: allowed
+    attributes:
+      label: Allowed files and actions
+      description: Be explicit. Unlisted scope is not automatically allowed.
+    validations:
+      required: true
+  - type: textarea
+    id: forbidden
+    attributes:
+      label: Forbidden files and actions
+      description: Include secrets, production writes, merge, deployment, and unrelated refactors where applicable.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Use objective, machine-verifiable checks.
+    validations:
+      required: true
+  - type: textarea
+    id: tests
+    attributes:
+      label: Required tests and manual proof
+      description: Include failure paths, tenant boundaries, and final git status where relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: external
+    attributes:
+      label: External services, data mutation, and secrets
+      description: State none when none are involved. Never paste secret values.
+    validations:
+      required: true
+  - type: textarea
+    id: rollback
+    attributes:
+      label: Rollback plan and known risks
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Required confirmations
+      options:
+        - label: I will not claim completion without captured proof.
+          required: true
+        - label: I will not directly push or merge to `main`.
+          required: true
+        - label: I will stop and report if repository state contradicts this issue.
+          required: true
