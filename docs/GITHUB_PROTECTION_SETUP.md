@@ -19,6 +19,7 @@ Branch: main
 - Require all review conversations to be resolved.
 - Require status checks to pass before merging.
 - Required check: `Verify application` from workflow `Cascada CI`.
+- After the first factory-managed PR creates it, also require `ai-factory/supervision`. Do not accept M0 until both checks are enforced.
 - Require the branch to be up to date before merging, unless a merge queue is enabled.
 - Block force pushes.
 - Block branch deletion.
@@ -45,5 +46,7 @@ Prove the ruleset with a disposable trial branch:
 4. Push a new commit after approval; stale approval must be dismissed.
 5. Resolve all review conversations and obtain the required approval.
 6. Merge through the PR path only.
+
+The factory supervision check cannot be selected in a ruleset until GitHub has observed it at least once. Enable the deterministic CI check first, run the governed bootstrap task, then add `ai-factory/supervision` before accepting M0. This sequencing does not authorize bypassing either check on later factory-managed PRs.
 
 Record screenshots or API output in the M0 pull request or trial issue. Do not mark M0 complete from configuration screenshots alone; the rejection and merge behavior must be exercised.
