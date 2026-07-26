@@ -128,6 +128,41 @@ test("rejects generic repository-secret reads and every secrets declaration form
   });
 });
 
+test("rejects secret expressions and OpenAI endpoints split across block scalars", async () => {
+  await withRepository(async (root) => {
+    await writeWorkflow(root, "multiline.yml", [
+      "name: Multiline authority",
+      "on: workflow_dispatch",
+      "jobs:",
+      "  evaluate:",
+      "    runs-on: ubuntu-24.04",
+      "    env:",
+      "      TOKEN: >-",
+      "        ${{",
+      "        secrets.MODEL_TOKEN",
+      "        }}",
+      "      ENDPOINT: >-",
+      "        https://api.",
+      "        openai.com/v1/responses",
+    ]);
+
+    const findings = findingsFor(
+      await inspectCodexSubscriptionBoundary(root),
+      "multiline.yml",
+    );
+    assert.ok(
+      findings.some((finding) =>
+        finding.reason.includes("may not read repository secrets"),
+      ),
+    );
+    assert.ok(
+      findings.some((finding) =>
+        finding.reason.includes("may not call the OpenAI API"),
+      ),
+    );
+  });
+});
+
 test("rejects YAML anchors and aliases that can obscure authority", async () => {
   await withRepository(async (root) => {
     await writeWorkflow(root, "anchor.yml", [
