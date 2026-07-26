@@ -7,9 +7,14 @@ import { pathToFileURL } from "node:url";
 
 const ALWAYS_FORBIDDEN_WORKFLOW_PATTERNS = [
   {
-    pattern: /OPENAI_API_KEY/,
+    pattern: /OPENAI_API_KEY/i,
     reason:
-      "GitHub workflows may not receive OPENAI_API_KEY; product-runtime credentials belong in the application hosting boundary",
+      "GitHub workflows may not receive OPENAI_API_KEY in any letter case; product-runtime credentials belong in the application hosting boundary",
+  },
+  {
+    pattern: /\bsecrets\s*:\s*inherit\b/i,
+    reason:
+      "GitHub workflows may not inherit all repository secrets into reusable workflows; map each required secret explicitly",
   },
   {
     pattern: /openai\/codex-action/i,
@@ -32,15 +37,6 @@ const ALWAYS_FORBIDDEN_WORKFLOW_PATTERNS = [
       /shans-ai-software-factory\/\.github\/workflows\/reusable-(?:implement|supervise)\.yml/i,
     reason: "retired API-backed implementation/supervision factory is referenced",
   },
-];
-
-const DEVELOPMENT_AGENT_INDICATORS = [
-  /\bcodex\b/i,
-  /\bai[- ]factory\b/i,
-  /\bsoftware[- ]development[- ]agent\b/i,
-  /reusable-(?:implement|supervise)\.yml/i,
-  /implement approved issue/i,
-  /repair (?:the )?(?:ci|pull request|pr)/i,
 ];
 
 const RETIRED_FILES = [
@@ -76,12 +72,6 @@ function lineNumberFor(content, pattern) {
   return index < 0 ? null : index + 1;
 }
 
-function isDevelopmentAgentWorkflow(path, content) {
-  return DEVELOPMENT_AGENT_INDICATORS.some(
-    (pattern) => pattern.test(path) || pattern.test(content),
-  );
-}
-
 function inspectWorkflow(path, content) {
   const findings = [];
   const normalized = path.replaceAll("\\", "/");
@@ -91,18 +81,6 @@ function inspectWorkflow(path, content) {
     if (line != null) {
       findings.push({ file: normalized, line, reason: rule.reason });
     }
-  }
-
-  if (
-    isDevelopmentAgentWorkflow(normalized, content) &&
-    /^\s*secrets:\s*inherit\s*(?:#.*)?$/im.test(content)
-  ) {
-    findings.push({
-      file: normalized,
-      line: lineNumberFor(content, /^\s*secrets:\s*inherit\s*(?:#.*)?$/i),
-      reason:
-        "software-development workflows may not inherit repository secrets into a reusable workflow",
-    });
   }
 
   return findings;
