@@ -122,15 +122,41 @@ test("rejects retired factory callers and superseded allowlist configuration", a
   });
 });
 
-test("rejects secrets inherit in every workflow regardless of name or formatting", async () => {
+test("rejects inherit, aliases, tags, block scalars, and inline scalar secrets", async () => {
   await withRepository(async (root) => {
-    await writeWorkflow(root, "release.yml", [
-      "name: Build",
+    await writeWorkflow(root, "inherit.yml", [
+      "name: Direct inheritance",
       "on: workflow_dispatch",
       "jobs:",
       "  publish:",
       "    uses: owner/repo/.github/workflows/neutral.yml@deadbeef",
       "    secrets: inherit",
+    ]);
+    await writeWorkflow(root, "alias.yml", [
+      "name: Aliased inheritance",
+      "on: workflow_dispatch",
+      "x-secret-mode: &all inherit",
+      "jobs:",
+      "  publish:",
+      "    uses: owner/repo/.github/workflows/neutral.yml@deadbeef",
+      "    secrets: *all",
+    ]);
+    await writeWorkflow(root, "tagged.yml", [
+      "name: Tagged inheritance",
+      "on: workflow_dispatch",
+      "jobs:",
+      "  publish:",
+      "    uses: owner/repo/.github/workflows/neutral.yml@deadbeef",
+      "    secrets: !!str inherit",
+    ]);
+    await writeWorkflow(root, "block.yml", [
+      "name: Block scalar inheritance",
+      "on: workflow_dispatch",
+      "jobs:",
+      "  publish:",
+      "    uses: owner/repo/.github/workflows/neutral.yml@deadbeef",
+      "    secrets: >",
+      "      inherit",
     ]);
     await writeWorkflow(root, "inline.yml", [
       "name: Inline inheritance",
@@ -141,15 +167,17 @@ test("rejects secrets inherit in every workflow regardless of name or formatting
 
     const findings = await inspectCodexSubscriptionBoundary(root);
     assert.equal(
-      findings.filter((finding) => finding.reason.includes("may not inherit")).length,
-      2,
+      findings.filter((finding) =>
+        finding.reason.includes("explicit YAML mapping"),
+      ).length,
+      5,
     );
   });
 });
 
-test("allows reusable workflows with explicit non-OpenAI secret mapping", async () => {
+test("allows reusable workflows with explicit block and inline secret mappings", async () => {
   await withRepository(async (root) => {
-    await writeWorkflow(root, "release.yml", [
+    await writeWorkflow(root, "block-map.yml", [
       "name: Publish static documentation",
       "on: workflow_dispatch",
       "jobs:",
@@ -157,6 +185,12 @@ test("allows reusable workflows with explicit non-OpenAI secret mapping", async 
       "    uses: owner/repo/.github/workflows/docs.yml@deadbeef",
       "    secrets:",
       "      docs_token: ${{ secrets.DOCS_TOKEN }}",
+    ]);
+    await writeWorkflow(root, "inline-map.yml", [
+      "name: Publish documentation inline",
+      "on: workflow_dispatch",
+      "jobs:",
+      "  publish: { uses: owner/repo/.github/workflows/docs.yml@deadbeef, secrets: { docs_token: ${{ secrets.DOCS_TOKEN }} } }",
     ]);
 
     assert.deepEqual(await inspectCodexSubscriptionBoundary(root), []);
