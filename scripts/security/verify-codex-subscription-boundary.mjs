@@ -5,14 +5,12 @@ import { constants } from "node:fs";
 import { join, relative } from "node:path";
 import { pathToFileURL } from "node:url";
 
-const FORBIDDEN_WORKFLOW_PATTERNS = [
+const PRODUCT_RUNTIME_MARKER = "# codex-subscription-boundary: product-runtime-only";
+
+const ALWAYS_FORBIDDEN_WORKFLOW_PATTERNS = [
   {
     pattern: /openai\/codex-action/i,
     reason: "GitHub-hosted Codex Action uses API-backed authentication",
-  },
-  {
-    pattern: /OPENAI_API_KEY/,
-    reason: "software-development workflows must not receive an OpenAI API key",
   },
   {
     pattern: /openai-api-key\s*:/i,
@@ -22,6 +20,13 @@ const FORBIDDEN_WORKFLOW_PATTERNS = [
     pattern: /shans-ai-software-factory\/\.github\/workflows\/reusable-(?:implement|supervise)\.yml/i,
     reason: "retired API-backed implementation/supervision factory is referenced",
   },
+];
+
+const DEVELOPMENT_AGENT_INDICATORS = [
+  /\bcodex\b/i,
+  /\bai[- ]factory\b/i,
+  /\bsoftware[- ]development[- ]agent\b/i,
+  /reusable-(?:implement|supervise)\.yml/i,
 ];
 
 const RETIRED_FILES = [
@@ -50,6 +55,45 @@ async function workflowFiles(root) {
     .sort();
 }
 
+function lineNumberFor(content, pattern) {
+  const lines = content.split(/\r?\n/);
+  const index = lines.findIndex((line) => pattern.test(line));
+  return index < 0 ? null : index + 1;
+}
+
+function isDevelopmentAgentWorkflow(path, content) {
+  const normalized = path.replaceAll("\\", "/");
+  return DEVELOPMENT_AGENT_INDICATORS.some(
+    (pattern) => pattern.test(normalized) || pattern.test(content),
+  );
+}
+
+function inspectWorkflow(path, content) {
+  const findings = [];
+  const normalized = path.replaceAll("\\", "/");
+
+  for (const rule of ALWAYS_FORBIDDEN_WORKFLOW_PATTERNS) {
+    const line = lineNumberFor(content, rule.pattern);
+    if (line != null) findings.push({ file: normalized, line, reason: rule.reason });
+  }
+
+  if (/OPENAI_API_KEY/.test(content)) {
+    const isAgentWorkflow = isDevelopmentAgentWorkflow(normalized, content);
+    const explicitlyProductRuntime = content.includes(PRODUCT_RUNTIME_MARKER);
+    if (isAgentWorkflow || !explicitlyProductRuntime) {
+      findings.push({
+        file: normalized,
+        line: lineNumberFor(content, /OPENAI_API_KEY/),
+        reason: isAgentWorkflow
+          ? "software-development workflows must not receive an OpenAI API key"
+          : `workflow OPENAI_API_KEY usage requires the exact reviewed marker: ${PRODUCT_RUNTIME_MARKER}`,
+      });
+    }
+  }
+
+  return findings;
+}
+
 export async function inspectCodexSubscriptionBoundary(root = process.cwd()) {
   const findings = [];
 
@@ -66,18 +110,7 @@ export async function inspectCodexSubscriptionBoundary(root = process.cwd()) {
 
   for (const path of await workflowFiles(root)) {
     const content = await readFile(path, "utf8");
-    const lines = content.split(/\r?\n/);
-    lines.forEach((line, index) => {
-      for (const rule of FORBIDDEN_WORKFLOW_PATTERNS) {
-        if (rule.pattern.test(line)) {
-          findings.push({
-            file: relative(root, path).replaceAll("\\", "/"),
-            line: index + 1,
-            reason: rule.reason,
-          });
-        }
-      }
-    });
+    findings.push(...inspectWorkflow(relative(root, path), content));
   }
 
   return findings;
