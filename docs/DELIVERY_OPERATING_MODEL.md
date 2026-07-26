@@ -2,7 +2,7 @@
 
 ## Objective
 
-Finish Cascada through a repeatable issue → branch → pull request → CI → independent review → merge process while minimizing founder intervention without reducing product quality.
+Finish Cascada through a repeatable issue → branch → pull request → CI → independent review → repair → merge-decision process while minimizing founder intervention without reducing product quality.
 
 GitHub is the system of record. Chat summaries are not project authority.
 
@@ -13,7 +13,7 @@ GitHub is the system of record. Chat summaries are not project authority.
 Required for:
 
 - roadmap and product-priority decisions;
-- external account, paid service, and credential decisions;
+- external accounts, paid services, and credentials;
 - destructive or production data operations;
 - RED-risk merge approval;
 - releases and deployments.
@@ -25,123 +25,103 @@ Shan should not be required for routine coding diagnosis, test repair, lint repa
 Responsibilities:
 
 - convert product goals into bounded GitHub issues;
-- inspect current repository truth before planning;
+- inspect repository truth before planning;
 - challenge weak architecture and false completion claims;
-- define acceptance criteria and risk level;
-- review high-risk PR evidence;
+- define acceptance criteria and risk;
+- review high-risk evidence;
 - decide whether findings require repair, redesign, or founder escalation.
 
 ChatGPT is not the routine branch implementer.
 
-### Codex — primary implementation agent
+### Codex — primary implementation and repair agent
+
+Codex must be authenticated through Shan's ChatGPT Pro account in Codex app, web/cloud, CLI, or IDE. Cascada development must not use an OpenAI API key as a hidden substitute for the Pro entitlement.
 
 Responsibilities:
 
 - work from one governed GitHub issue;
-- create one branch for one objective;
-- inspect `AGENTS.md`, `README.md`, and relevant truth documents;
+- create one isolated branch or worktree for one objective;
+- read `AGENTS.md`, `README.md`, and relevant truth documents;
 - implement production code and tests;
-- diagnose and repair its own CI failures;
-- open or update the PR;
-- respond to independent review findings;
-- stop only for a genuine product decision, missing external access, unsafe operation, or contradictory authority.
+- diagnose and repair ordinary failures;
+- open or update a draft PR;
+- respond to independent findings;
+- stop only for a genuine product decision, missing external access, unsafe operation, contradictory authority, or a real usage limit.
 
-Codex may not merge or deploy.
+Codex may not merge, deploy, use production credentials, or perform production writes.
 
-### Grok — security and product red team
-
-Use for:
-
-- authentication;
-- tenant isolation;
-- regulatory-source and interpretation boundaries;
-- billing;
-- ERP credentials and sync;
-- architecture and data integrity;
-- major release reviews.
-
-Grok reviews the exact PR diff and acceptance criteria. It does not silently edit the implementation branch.
-
-### GLM 5.2 — test and failure-path reviewer
+### GLM 5.2 — independent failure-path reviewer
 
 Use for:
 
 - missing negative tests;
-- API producer/consumer contract mismatches;
+- producer/consumer contract mismatches;
 - schema and migration edge cases;
 - retry and idempotency gaps;
 - documentation overclaims;
-- broad repetitive test generation proposals.
+- repetitive test-gap analysis.
 
-GLM reviews the PR; it does not become a second competing implementer unless a new issue explicitly assigns it implementation authority.
+GLM reviews the exact PR diff. It does not become a second competing implementer unless a separate issue grants implementation authority.
+
+The GLM review path must not depend on an OpenAI API key. Until a review-only integration is verified, GLM review is a required manual/account-level gate and M0 remains incomplete.
+
+### Grok — security and product red team
+
+Use for authentication, tenant isolation, regulatory boundaries, billing, ERP credentials and sync, architecture, data integrity, and major releases. Grok reviews the exact diff and does not silently edit the implementation branch.
 
 ### GitHub Actions — deterministic evidence gate
 
-CI decides whether machine-verifiable requirements passed. Agent summaries cannot override CI.
+`Cascada CI` decides whether machine-verifiable requirements passed. Agent summaries cannot override CI. GitHub Actions must not invoke Codex through an OpenAI API key.
 
 ## Unit of work
-
-Every implementation uses:
 
 ```text
 one issue
 → one branch
 → one objective
-→ one pull request
+→ one draft pull request
 → required CI
-→ required review
-→ merge decision
+→ required independent review
+→ bounded repair
+→ human merge decision
 ```
 
 Do not combine unrelated features, cleanup, refactors, migrations, and integrations in one task.
+
+## Queue and automation
+
+The `ai:build` label authorizes an issue for the Codex queue. It does not itself invoke a model.
+
+On ChatGPT Pro, the supported implementation surfaces are Codex app, web/cloud, CLI, and IDE. A scheduled Codex app automation may poll the issue and PR queues using the contracts in `docs/CODEX_PRO_AUTOMATION.md`.
+
+Current limitation: a personal Pro plan does not provide the programmatic access token required for a GitHub event to launch a Codex task. The repository must not claim event-driven Pro execution until OpenAI provides and the project verifies that capability. No API-billed fallback is permitted.
 
 ## Risk-based review
 
 ### GREEN
 
-Examples:
-
-- documentation truth correction;
-- isolated test addition;
-- accessibility text or styling correction;
-- internal refactor with no behavior or schema change.
+Examples: documentation truth correction, isolated test addition, accessibility correction, internal refactor with no behavior or schema change.
 
 Required:
 
 - CI passes;
 - fresh-context review;
-- no unresolved review conversations.
+- no unresolved blocking conversation.
 
 ### YELLOW
 
-Examples:
-
-- ordinary product feature;
-- API behavior change;
-- query/UI wiring;
-- non-destructive schema addition;
-- CI or development-tooling change.
+Examples: ordinary feature, API behavior, query/UI wiring, non-destructive schema addition, CI or development tooling.
 
 Required:
 
 - CI passes;
 - one independent technical review;
 - all blocking findings repaired;
-- no unresolved review conversations.
+- no unresolved blocking conversation.
 
 ### RED
 
-Examples:
-
-- authentication or authorization;
-- tenant isolation;
-- destructive or data-transforming migration;
-- regulatory write paths;
-- Stripe/payment logic;
-- ERP credentials or synchronization;
-- LLM regulatory conclusions;
-- Temporal production execution;
-- secrets, deployment, backup, or recovery.
+Examples: authentication, authorization, tenant isolation, destructive migration, regulatory write paths, payment logic, ERP credentials or sync, LLM regulatory conclusions, Temporal production execution, secrets, deployment, backup, or recovery.
 
 Required:
 
@@ -157,8 +137,6 @@ Unsafe, unlawful, secret-exposing, uncontrolled production, or intentionally dec
 
 ## Agent completion contract
 
-An implementation agent must continue through ordinary failures. It may not return after the first error with only a diagnosis.
-
 Expected loop:
 
 ```text
@@ -168,31 +146,32 @@ inspect
 → diagnose failures
 → repair
 → run complete required checks
-→ open/update PR
+→ open/update draft PR
 → address review
 → rerun checks
+→ stop at human merge gate
 ```
 
 Escalation is allowed only when:
 
 - product requirements conflict;
-- a credential or external account is required;
+- an external account or credential is required;
 - an action may mutate production or paid external systems;
 - a migration or repair could destroy data;
 - the governing issue is materially wrong;
+- a Codex usage limit blocks execution;
 - required evidence cannot be produced honestly.
 
 ## Pull-request acceptance
 
-A PR is not ready merely because code exists.
-
-It must include:
+A PR must include:
 
 - governing issue;
 - exact base and head identity;
 - complete changed-file scope;
 - production behavior explanation;
-- exact test commands and results;
+- exact commands and results;
+- test counts, failures, and skips;
 - failure-path coverage;
 - external-effect declaration;
 - final repository status;
@@ -202,14 +181,12 @@ It must include:
 
 - No direct pushes to `main`.
 - No merge while required CI is pending or failing.
-- No unresolved blocking review finding.
-- New commits after review invalidate stale approval.
+- No unresolved blocking finding.
+- New commits invalidate stale review.
 - Deployment requires a separate approved release task.
-- Auto-merge may be enabled later only for tightly defined GREEN tasks after the workflow proves reliable.
+- Codex, GLM, Grok, ChatGPT, and GitHub automation may not merge or deploy.
 
-## Daily founder briefing format
-
-The normal report to Shan should contain only:
+## Daily founder briefing
 
 ```text
 Merged
@@ -220,12 +197,14 @@ Next queued tasks
 Current milestone confidence
 ```
 
-Raw command logs remain attached to PRs and CI artifacts rather than being repeatedly relayed through chat.
+Raw evidence remains in GitHub rather than being repeatedly relayed through chat.
 
-## Current implementation constraint
+## Current implementation state
 
-The GitHub Actions factory adapter is repository-defined and pinned to an exact reviewed factory commit. GitHub repository rulesets and repository secrets remain account-level controls and must be verified separately before calling the delivery system complete.
+- GitHub CI and protected-PR delivery are repository-defined.
+- The former API-key-backed `ai-implement.yml` and `ai-supervise.yml` paths are being removed.
+- Codex Pro account connection, environment setup, scheduled automations, and automatic PR review are account-level controls and must be exercised before M0 is accepted.
+- GLM review-only automation without an OpenAI dependency remains to be verified.
+- Issue #12 remains the first bounded implementation proof.
 
-The adapter requires `OPENAI_API_KEY` and `ZAI_API_KEY` as GitHub repository secrets. Secret values must never be committed, pasted into issues, or relayed through chat. The factory cannot merge or deploy, and a successful generated PR remains draft until the required human decision.
-
-The model runner has no trusted database or Redis service. Its local commands therefore cover install, schema validation, typecheck, strict lint, unit/regression tests, production dependency audit, and build. Cascada CI remains authoritative for disposable PostgreSQL/Redis services, committed migrations, deterministic seed, and Playwright browser proof.
+This operating model is not evidence that Cascada is production-ready.
