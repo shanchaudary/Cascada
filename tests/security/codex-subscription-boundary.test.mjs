@@ -23,32 +23,35 @@ async function withRepository(run) {
   }
 }
 
-test("accepts ordinary CI workflows without OpenAI development credentials", async () => {
+function findingsFor(findings, file) {
+  return findings.filter((finding) => finding.file.endsWith(file));
+}
+
+test("accepts ordinary secret-free CI workflows", async () => {
   await withRepository(async (root) => {
     await writeWorkflow(
       root,
       "ci.yml",
-      "name: CI\non: [pull_request]\njobs:\n  verify:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: npm test\n",
+      "name: CI\non: [pull_request]\npermissions:\n  contents: read\njobs:\n  verify:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: npm test\n",
     );
 
     assert.deepEqual(await inspectCodexSubscriptionBoundary(root), []);
   });
 });
 
-test("rejects OPENAI_API_KEY in every GitHub workflow and every letter case", async () => {
+test("rejects OPENAI_API_KEY in every letter case", async () => {
   await withRepository(async (root) => {
-    await writeWorkflow(root, "product-openai.yml", [
-      "name: Run product AI evaluation",
+    await writeWorkflow(root, "lower.yml", [
+      "name: Lower-case credential",
       "on: workflow_dispatch",
-      "permissions: read-all",
       "jobs:",
       "  evaluate:",
       "    runs-on: ubuntu-24.04",
       "    env:",
       "      provider_key: ${{ secrets.openai_api_key }}",
     ]);
-    await writeWorkflow(root, "mixed-case.yml", [
-      "name: Mixed case credential",
+    await writeWorkflow(root, "mixed.yml", [
+      "name: Mixed-case credential",
       "on: workflow_dispatch",
       "jobs:",
       "  evaluate:",
@@ -58,11 +61,112 @@ test("rejects OPENAI_API_KEY in every GitHub workflow and every letter case", as
     ]);
 
     const findings = await inspectCodexSubscriptionBoundary(root);
-    assert.equal(
-      findings.filter((finding) =>
-        finding.reason.includes("may not receive OPENAI_API_KEY"),
-      ).length,
-      2,
+    for (const file of ["lower.yml", "mixed.yml"]) {
+      assert.ok(
+        findingsFor(findings, file).some((finding) =>
+          finding.reason.includes("may not reference OPENAI_API_KEY"),
+        ),
+      );
+    }
+  });
+});
+
+test("rejects generic repository-secret reads and every secrets declaration form", async () => {
+  await withRepository(async (root) => {
+    await writeWorkflow(root, "secret-reference.yml", [
+      "name: Generic secret read",
+      "on: workflow_dispatch",
+      "jobs:",
+      "  publish:",
+      "    runs-on: ubuntu-24.04",
+      "    env:",
+      "      token: ${{ secrets.MODEL_TOKEN }}",
+    ]);
+    await writeWorkflow(root, "block-map.yml", [
+      "name: Reusable block mapping",
+      "on: workflow_dispatch",
+      "jobs:",
+      "  publish:",
+      "    uses: owner/repo/.github/workflows/docs.yml@deadbeef",
+      "    secrets:",
+      "      docs_token: placeholder",
+    ]);
+    await writeWorkflow(root, "inline-map.yml", [
+      "name: Reusable inline mapping",
+      "on: workflow_dispatch",
+      "jobs:",
+      "  publish: { uses: owner/repo/.github/workflows/docs.yml@deadbeef, secrets: { docs_token: placeholder } }",
+    ]);
+    await writeWorkflow(root, "quoted-key.yml", [
+      "name: Quoted secrets key",
+      "on: workflow_dispatch",
+      "jobs:",
+      "  publish:",
+      "    uses: owner/repo/.github/workflows/docs.yml@deadbeef",
+      "    \"secrets\": inherit",
+    ]);
+    await writeWorkflow(root, "explicit-key.yml", [
+      "name: Explicit YAML key",
+      "on: workflow_dispatch",
+      "jobs:",
+      "  publish:",
+      "    uses: owner/repo/.github/workflows/docs.yml@deadbeef",
+      "    ? secrets",
+      "    : inherit",
+    ]);
+
+    const findings = await inspectCodexSubscriptionBoundary(root);
+    for (const file of [
+      "secret-reference.yml",
+      "block-map.yml",
+      "inline-map.yml",
+      "quoted-key.yml",
+      "explicit-key.yml",
+    ]) {
+      assert.ok(findingsFor(findings, file).length > 0, `${file} must fail closed`);
+    }
+  });
+});
+
+test("rejects YAML anchors and aliases that can obscure authority", async () => {
+  await withRepository(async (root) => {
+    await writeWorkflow(root, "anchor.yml", [
+      "name: Anchored value",
+      "on: workflow_dispatch",
+      "x-mode: &all inherit",
+      "jobs:",
+      "  publish:",
+      "    runs-on: ubuntu-24.04",
+      "    env:",
+      "      MODE: *all",
+    ]);
+
+    const findings = await inspectCodexSubscriptionBoundary(root);
+    assert.ok(
+      findingsFor(findings, "anchor.yml").some((finding) =>
+        finding.reason.includes("YAML anchors or aliases"),
+      ),
+    );
+  });
+});
+
+test("rejects direct OpenAI API calls with generically named credentials", async () => {
+  await withRepository(async (root) => {
+    await writeWorkflow(root, "direct-api.yml", [
+      "name: Generic model call",
+      "on: workflow_dispatch",
+      "jobs:",
+      "  evaluate:",
+      "    runs-on: ubuntu-24.04",
+      "    steps:",
+      "      - run: curl https://api.openai.com/v1/responses -H 'Authorization: Bearer token'",
+    ]);
+
+    const findings = await inspectCodexSubscriptionBoundary(root);
+    assert.ok(
+      findingsFor(findings, "direct-api.yml").some((finding) =>
+        finding.reason.includes("may not call the OpenAI API"),
+      ),
     );
   });
 });
@@ -94,7 +198,7 @@ test("rejects official Codex action, direct package use, and codex exec", async 
   });
 });
 
-test("rejects retired factory callers and superseded allowlist configuration", async () => {
+test("rejects retired factory callers and superseded configuration", async () => {
   await withRepository(async (root) => {
     await writeWorkflow(root, "ai-implement.yml", "name: retired\n");
     await mkdir(join(root, ".ai-factory"), { recursive: true });
@@ -122,82 +226,7 @@ test("rejects retired factory callers and superseded allowlist configuration", a
   });
 });
 
-test("rejects inherit, aliases, tags, block scalars, and inline scalar secrets", async () => {
-  await withRepository(async (root) => {
-    await writeWorkflow(root, "inherit.yml", [
-      "name: Direct inheritance",
-      "on: workflow_dispatch",
-      "jobs:",
-      "  publish:",
-      "    uses: owner/repo/.github/workflows/neutral.yml@deadbeef",
-      "    secrets: inherit",
-    ]);
-    await writeWorkflow(root, "alias.yml", [
-      "name: Aliased inheritance",
-      "on: workflow_dispatch",
-      "x-secret-mode: &all inherit",
-      "jobs:",
-      "  publish:",
-      "    uses: owner/repo/.github/workflows/neutral.yml@deadbeef",
-      "    secrets: *all",
-    ]);
-    await writeWorkflow(root, "tagged.yml", [
-      "name: Tagged inheritance",
-      "on: workflow_dispatch",
-      "jobs:",
-      "  publish:",
-      "    uses: owner/repo/.github/workflows/neutral.yml@deadbeef",
-      "    secrets: !!str inherit",
-    ]);
-    await writeWorkflow(root, "block.yml", [
-      "name: Block scalar inheritance",
-      "on: workflow_dispatch",
-      "jobs:",
-      "  publish:",
-      "    uses: owner/repo/.github/workflows/neutral.yml@deadbeef",
-      "    secrets: >",
-      "      inherit",
-    ]);
-    await writeWorkflow(root, "inline.yml", [
-      "name: Inline inheritance",
-      "on: workflow_dispatch",
-      "jobs:",
-      "  publish: { uses: owner/repo/.github/workflows/neutral.yml@deadbeef, secrets: inherit }",
-    ]);
-
-    const findings = await inspectCodexSubscriptionBoundary(root);
-    assert.equal(
-      findings.filter((finding) =>
-        finding.reason.includes("explicit YAML mapping"),
-      ).length,
-      5,
-    );
-  });
-});
-
-test("allows reusable workflows with explicit block and inline secret mappings", async () => {
-  await withRepository(async (root) => {
-    await writeWorkflow(root, "block-map.yml", [
-      "name: Publish static documentation",
-      "on: workflow_dispatch",
-      "jobs:",
-      "  publish:",
-      "    uses: owner/repo/.github/workflows/docs.yml@deadbeef",
-      "    secrets:",
-      "      docs_token: ${{ secrets.DOCS_TOKEN }}",
-    ]);
-    await writeWorkflow(root, "inline-map.yml", [
-      "name: Publish documentation inline",
-      "on: workflow_dispatch",
-      "jobs:",
-      "  publish: { uses: owner/repo/.github/workflows/docs.yml@deadbeef, secrets: { docs_token: ${{ secrets.DOCS_TOKEN }} } }",
-    ]);
-
-    assert.deepEqual(await inspectCodexSubscriptionBoundary(root), []);
-  });
-});
-
-test("does not inspect product runtime configuration outside GitHub workflows", async () => {
+test("ignores product runtime configuration outside GitHub workflows", async () => {
   await withRepository(async (root) => {
     await writeFile(
       join(root, ".env.example"),
