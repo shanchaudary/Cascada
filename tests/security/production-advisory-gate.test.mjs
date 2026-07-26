@@ -27,6 +27,8 @@ test("builds a sorted production-only version map from lockfile v3", () => {
       "node_modules/a/node_modules/b": { version: "3.0.0" },
       "node_modules/another-b": { name: "b", version: "4.0.0" },
       "node_modules/dev-only": { version: "1.0.0", dev: true },
+      // npm documents devOptional as also reachable through an optional
+      // dependency of a non-development dependency, so it remains production.
       "node_modules/dev-optional": { version: "1.0.0", devOptional: true },
       "node_modules/optional-prod": { version: "5.0.0", optional: true },
       "node_modules/link": { link: true },
@@ -36,6 +38,7 @@ test("builds a sorted production-only version map from lockfile v3", () => {
   assert.deepEqual(map, {
     a: ["2.0.0"],
     b: ["3.0.0", "4.0.0"],
+    "dev-optional": ["1.0.0"],
     "optional-prod": ["5.0.0"],
   });
 });
