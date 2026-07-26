@@ -3,13 +3,15 @@ name: Generate Next.js security lockfile
 on:
   push:
     branches: [fix/next-15-5-21-security]
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: write
 
 jobs:
   generate:
-    if: ${{ !contains(github.event.head_commit.message, '[lock-generated]') }}
+    if: ${{ (github.event_name == 'push' && !contains(github.event.head_commit.message, '[lock-generated]')) || (github.event_name == 'pull_request' && github.head_ref == 'fix/next-15-5-21-security') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -27,9 +29,18 @@ jobs:
           cache: npm
 
       - name: Regenerate only the declared dependency and lockfile
-        run: npm install --package-lock-only --save-exact next@15.5.21
+        id: generate
+        run: |
+          set -euo pipefail
+          npm install --package-lock-only --save-exact next@15.5.21
+          if git diff --quiet -- package.json package-lock.json; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Reject unrelated manifest changes
+        if: ${{ steps.generate.outputs.changed == 'true' }}
         run: |
           set -euo pipefail
           changed="$(git diff --name-only)"
@@ -37,6 +48,7 @@ jobs:
           node -e 'const p=require("./package.json"); if(p.dependencies.next!=="15.5.21") process.exit(1)'
 
       - name: Commit generated lockfile
+        if: ${{ steps.generate.outputs.changed == 'true' }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
