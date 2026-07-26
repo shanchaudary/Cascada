@@ -27,12 +27,12 @@ test("accepts ordinary CI workflows without OpenAI development credentials", asy
   });
 });
 
-test("rejects the official Codex action and OpenAI API secret in workflows", async () => {
+test("rejects the official Codex action and OpenAI API secret in an agent workflow", async () => {
   await withRepository(async (root) => {
     await writeFile(
       join(root, ".github", "workflows", "agent.yml"),
       [
-        "name: Agent",
+        "name: Codex agent",
         "on: workflow_dispatch",
         "jobs:",
         "  build:",
@@ -60,6 +60,67 @@ test("rejects retired factory callers and configuration", async () => {
     const findings = await inspectCodexSubscriptionBoundary(root);
     assert.ok(findings.some((finding) => finding.file === ".github/workflows/ai-implement.yml"));
     assert.ok(findings.some((finding) => finding.file === ".ai-factory/project.json"));
+  });
+});
+
+test("requires an explicit marker for product-runtime OpenAI workflow credentials", async () => {
+  await withRepository(async (root) => {
+    await writeFile(
+      join(root, ".github", "workflows", "deploy.yml"),
+      [
+        "name: Deploy application",
+        "on: workflow_dispatch",
+        "jobs:",
+        "  deploy:",
+        "    runs-on: ubuntu-24.04",
+        "    env:",
+        "      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}",
+      ].join("\n"),
+    );
+
+    const findings = await inspectCodexSubscriptionBoundary(root);
+    assert.ok(findings.some((finding) => finding.reason.includes("product-runtime-only")));
+  });
+});
+
+test("allows explicitly marked product-runtime use without an agent indicator", async () => {
+  await withRepository(async (root) => {
+    await writeFile(
+      join(root, ".github", "workflows", "deploy.yml"),
+      [
+        "name: Deploy application",
+        "# codex-subscription-boundary: product-runtime-only",
+        "on: workflow_dispatch",
+        "jobs:",
+        "  deploy:",
+        "    runs-on: ubuntu-24.04",
+        "    env:",
+        "      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}",
+      ].join("\n"),
+    );
+
+    assert.deepEqual(await inspectCodexSubscriptionBoundary(root), []);
+  });
+});
+
+test("does not let the product-runtime marker excuse Codex development use", async () => {
+  await withRepository(async (root) => {
+    await writeFile(
+      join(root, ".github", "workflows", "codex-build.yml"),
+      [
+        "name: Codex build",
+        "# codex-subscription-boundary: product-runtime-only",
+        "on: workflow_dispatch",
+        "jobs:",
+        "  build:",
+        "    runs-on: ubuntu-24.04",
+        "    env:",
+        "      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}",
+      ].join("\n"),
+    );
+
+    const findings = await inspectCodexSubscriptionBoundary(root);
+    assert.ok(findings.some((finding) => finding.reason.includes("must not receive")));
   });
 });
 
