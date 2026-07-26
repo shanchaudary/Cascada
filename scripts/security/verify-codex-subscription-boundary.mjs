@@ -12,11 +12,6 @@ const ALWAYS_FORBIDDEN_WORKFLOW_PATTERNS = [
       "GitHub workflows may not receive OPENAI_API_KEY in any letter case; product-runtime credentials belong in the application hosting boundary",
   },
   {
-    pattern: /\bsecrets\s*:\s*inherit\b/i,
-    reason:
-      "GitHub workflows may not inherit all repository secrets into reusable workflows; map each required secret explicitly",
-  },
-  {
     pattern: /openai\/codex-action/i,
     reason: "GitHub-hosted Codex Action uses API-backed authentication",
   },
@@ -46,6 +41,9 @@ const RETIRED_FILES = [
   ".github/codex-product-runtime-workflows.json",
 ];
 
+const UNSCOPED_SECRETS_REASON =
+  "Reusable-workflow secrets must be an explicit YAML mapping; scalar, inherited, aliased, tagged, and block-scalar forms are rejected";
+
 async function exists(path) {
   try {
     await access(path, constants.F_OK);
@@ -72,6 +70,43 @@ function lineNumberFor(content, pattern) {
   return index < 0 ? null : index + 1;
 }
 
+function withoutTrailingComment(value) {
+  return value.replace(/\s+#.*$/, "").trim();
+}
+
+function isExplicitSecretsMapping(value) {
+  if (value === "") return true;
+  return value.startsWith("{") && value.endsWith("}");
+}
+
+function inspectSecretsDeclarations(content) {
+  const findings = [];
+  const lines = content.split(/\r?\n/);
+
+  lines.forEach((line, index) => {
+    if (/^\s*#/.test(line)) return;
+
+    const blockKey = line.match(/^\s*secrets\s*:\s*(.*?)\s*$/i);
+    if (blockKey) {
+      const value = withoutTrailingComment(blockKey[1]);
+      if (!isExplicitSecretsMapping(value)) {
+        findings.push({ line: index + 1, reason: UNSCOPED_SECRETS_REASON });
+      }
+      return;
+    }
+
+    const flowKey = line.match(/(?:^|[,{])\s*secrets\s*:\s*(\{[^}]*\}|[^,}]+)/i);
+    if (flowKey) {
+      const value = withoutTrailingComment(flowKey[1]);
+      if (!isExplicitSecretsMapping(value)) {
+        findings.push({ line: index + 1, reason: UNSCOPED_SECRETS_REASON });
+      }
+    }
+  });
+
+  return findings;
+}
+
 function inspectWorkflow(path, content) {
   const findings = [];
   const normalized = path.replaceAll("\\", "/");
@@ -81,6 +116,10 @@ function inspectWorkflow(path, content) {
     if (line != null) {
       findings.push({ file: normalized, line, reason: rule.reason });
     }
+  }
+
+  for (const finding of inspectSecretsDeclarations(content)) {
+    findings.push({ file: normalized, ...finding });
   }
 
   return findings;
