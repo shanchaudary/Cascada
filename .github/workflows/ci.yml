@@ -6,15 +6,6 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      factory_pr:
-        description: Factory-managed pull request number
-        required: false
-        type: string
-      factory_issue:
-        description: Factory-authorized issue number
-        required: false
-        type: string
 
 permissions:
   contents: read
@@ -103,6 +94,12 @@ jobs:
 
       - name: Run unit and regression tests
         run: npm test
+
+      - name: Test the Codex subscription boundary
+        run: node --test tests/security/codex-subscription-boundary.test.mjs
+
+      - name: Reject API-backed Codex development workflows
+        run: node scripts/security/verify-codex-subscription-boundary.mjs
 
       - name: Test the production advisory gate
         run: node --test tests/security/production-advisory-gate.test.mjs
