@@ -20,9 +20,10 @@ A bounded issue can travel through Codex implementation, branch, draft PR, deter
 - current-product-truth document;
 - delivery operating model;
 - protected-main ruleset;
-- Codex app/web/CLI environment authenticated through ChatGPT Pro;
-- GitHub connection and automatic Codex PR review;
-- scheduled Codex implementation and repair queue automations;
+- Codex app, cloud-task, CLI, or IDE environment authenticated through ChatGPT Pro;
+- GitHub connection and automatic or explicit `@codex review` pull-request review;
+- verified PR-context implementation and repair controls, including `@codex fix the CI failures`;
+- optional scheduled Codex issue-queue automation only after behavioral proof;
 - authorized-actor and issue-label queue gate;
 - GLM independent review path that does not require an OpenAI API key;
 - exact CI evidence and stale-head checks;
