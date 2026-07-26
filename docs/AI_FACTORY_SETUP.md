@@ -23,9 +23,9 @@ Codex engineering work must be authenticated by signing in to Codex with Shan's 
 - Codex CLI;
 - Codex IDE extension.
 
-Do not configure `OPENAI_API_KEY` as a GitHub repository secret for Codex implementation or repair. The former GitHub-hosted Codex Action used API billing and is removed from Cascada.
+Do not configure `OPENAI_API_KEY` as a GitHub repository secret for Codex implementation or repair. The former GitHub-hosted Codex Action used API billing and is removed from this candidate branch.
 
-This delivery rule does not remove or alter any OpenAI credential that Cascada's product runtime may eventually require. Product-provider credentials and software-development-agent authentication are separate authorities.
+No active GitHub workflow may receive `OPENAI_API_KEY`. A future product-runtime OpenAI credential belongs in the deployed application's hosting or secret-management boundary, not in the software-development workflow. Product runtime code and local configuration outside GitHub Actions are not removed or disabled by this delivery rule.
 
 ## Current Pro-plan limitation
 
