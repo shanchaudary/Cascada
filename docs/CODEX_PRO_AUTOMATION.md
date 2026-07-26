@@ -1,131 +1,131 @@
-# Codex Pro Automation Contracts
+# Codex Pro Delivery Controls
 
-These contracts are designed for Codex app automations authenticated with Shan's ChatGPT Pro account. They do not use an OpenAI API key.
+These controls use Codex authenticated through Shan's ChatGPT Pro account. They do not use an OpenAI API key for software-development work.
 
-Codex app automations are scheduled tasks. They are not GitHub webhooks. Local automations require the computer to be awake and Codex to be running. Cloud tasks may continue in the Codex cloud after delegation.
+## Supported control plane
 
-## Automation 1 — Cascada implementation queue
+GitHub remains the source of truth for issues, branches, pull requests, CI, review findings, and merge decisions.
 
-Suggested cadence: hourly while development is active.
+The primary Pro-backed Codex controls are:
 
-Paste this instruction into a Codex automation attached to the Cascada project:
+- Codex app, CLI, IDE, or a delegated cloud task for initial implementation;
+- automatic Codex review for connected GitHub repositories;
+- `@codex review` in a pull-request comment for an explicit fresh review;
+- `@codex fix the CI failures` for a bounded CI repair task;
+- `@codex fix the P1 issue` or an equally specific finding reference for a bounded review repair;
+- another non-review `@codex` PR comment to start a cloud task with that PR's context.
+
+Do not invoke `openai/codex-action`, pass `OPENAI_API_KEY` to a development workflow, or silently fall back to OpenAI API billing.
+
+## Initial implementation contract
+
+For an authorized GitHub issue, start a Codex app, CLI, IDE, or cloud task with this contract:
 
 ```text
-MODE: IMPLEMENTATION QUEUE
+MODE: IMPLEMENTATION
 
 Repository: shanchaudary/Cascada
+Governing issue: #<number>
 
-At each run, inspect the connected GitHub repository and select at most one task.
+Read AGENTS.md in full, then read the governing issue, README.md, and every relevant truth or architecture document.
 
-ELIGIBILITY
+Before editing, report:
+- exact main SHA;
+- branch or worktree name;
+- git status --short;
+- the required task contract;
+- any contradiction or unsafe requirement.
 
-Select the oldest open issue that:
-- has label ai:build;
-- has exactly one ai:risk:green, ai:risk:yellow, or ai:risk:red label;
-- does not have ai:risk:black;
-- does not have ai:building, ai:managed, ai:ready-for-shan, or ai:needs-shan;
-- is assigned to Shan or contains explicit written authorization from Shan;
-- contains a material objective, acceptance criteria, non-goals, failure paths, and evidence requirements.
+Use one branch named codex/issue-<number>-<short-slug>.
+Do not edit main directly.
+Implement only the governing issue.
+Do not flatten architecture, remove required capability, add fake behavior, add blanket suppressions, or use TODO/stub success paths.
+Do not touch production credentials or perform production writes.
 
-If no eligible issue exists, do nothing and return a short queue-empty report.
+Run focused checks during implementation, then run:
 
-BEFORE EDITING
+bash scripts/agent/verify.sh
 
-1. Read AGENTS.md in full.
-2. Read the selected issue in full.
-3. Read README.md and every truth/governance file relevant to the issue.
-4. Verify the current main SHA and repository status.
-5. Write the required task contract before changing files.
-6. Add ai:building to the issue and comment with the planned branch name and verified base SHA.
+Inspect the complete diff for scope creep, secrets, generated artifacts, binaries, governance changes, and failure-path gaps.
 
-IMPLEMENTATION
+Commit and push the bounded implementation. Open or update a draft pull request linked to the issue. Include exact base/head SHA, files changed, behavior, commands, test counts, failures/skips, external effects, limitations, and final repository status.
 
-- Use one isolated worktree or branch named codex/issue-<number>-<short-slug>.
-- Do not edit main directly.
-- Implement only the governing issue.
-- Do not flatten architecture, remove required capabilities, add fake behavior, add broad suppressions, or use TODO/stub success paths.
-- Do not touch production credentials or perform production writes.
-- Run focused checks during implementation.
-- Run bash scripts/agent/verify.sh before publication.
-- Inspect the complete diff for scope creep, secrets, generated artifacts, binary files, and accidental governance changes.
-
-PUBLICATION
-
-- Commit the bounded implementation.
-- Push the task branch.
-- Open a draft pull request linked to the issue.
-- Include exact base/head SHA, files changed, behavior, commands, test counts, failures/skips, external effects, known limitations, and final repository status.
-- Add ai:managed to the issue.
-- Do not merge, approve, enable auto-merge, deploy, or close the issue.
-
-FAILURE
-
-Continue through ordinary code, lint, test, type, build, and CI failures.
-Stop and add ai:needs-shan only for:
-- contradictory product authority;
-- a missing credential or external account that Shan must provide;
-- a potentially destructive or production operation;
-- an invalid governing issue;
-- a ChatGPT/Codex usage limit;
-- an inability to produce truthful evidence.
-
-When blocked, report the exact error and the smallest required human decision. Never infer success.
+Do not merge, approve, enable auto-merge, deploy, close the issue, or perform production writes.
+Continue through ordinary code, lint, type, test, build, and CI failures. Stop only for contradictory authority, a genuine product decision, missing external access, unsafe data operation, a Codex usage limit, or inability to produce truthful evidence.
 ```
 
-## Automation 2 — Cascada PR repair queue
+## Pull-request review
 
-Suggested cadence: hourly, offset from the implementation automation.
+After the implementation PR is open and CI has produced evidence:
+
+1. Ensure automatic Codex review is enabled for Cascada, or comment:
 
 ```text
-MODE: PR REPAIR QUEUE
+@codex review
+```
 
-Repository: shanchaudary/Cascada
+2. Codex review must inspect the exact current head. New commits invalidate stale review.
+3. GLM independently reviews the exact diff for failure paths and test gaps.
+4. RED work also receives Grok and ChatGPT review before Shan's decision.
 
-At each run, inspect open draft pull requests whose branch begins with codex/issue-.
-Select at most one PR that has one of these conditions:
-- Cascada CI is failing;
-- Codex automatic review has unresolved blocking findings;
-- GLM, Grok, ChatGPT, or a human reviewer has unresolved blocking findings;
-- the governing issue explicitly requests a bounded follow-up on the same branch.
+A Codex review is not merge authority.
 
-BEFORE EDITING
+## CI repair
 
-1. Read AGENTS.md.
-2. Read the governing issue, PR body, complete diff, review threads, and full failed CI logs.
-3. Verify the exact current PR head and ensure no newer commit invalidates the evidence.
-4. Classify each finding as valid, invalid, duplicate, stale, or outside scope.
+For a failing Cascada CI run, post this comment on the draft PR:
 
-REPAIR
+```text
+@codex fix the CI failures. Read AGENTS.md and the governing issue first. Inspect the complete failed-job logs and exact current PR head. Repair only valid in-scope defects, add focused regression tests, run bash scripts/agent/verify.sh, push to this branch, update the PR evidence, and stop before merge or deployment.
+```
 
-- Repair only valid in-scope blockers.
-- Do not silently expand the issue.
-- Add focused regression tests for each behavioral defect.
-- Run bash scripts/agent/verify.sh.
-- Push to the existing task branch.
-- Update the PR evidence with exact commands and results.
-- Resolve conversations only after the correction is present and verified.
+Do not post this command until the failure is understood well enough to confirm it belongs to the governing issue.
 
-READY STATE
+## Review-finding repair
+
+For verified blocking findings, post one bounded command that identifies the findings explicitly:
+
+```text
+@codex fix all valid blocking findings in the latest review on this PR. Read AGENTS.md, the governing issue, the exact current diff, and every unresolved review thread. Reject stale, duplicate, invalid, or outside-scope findings with evidence. Repair valid in-scope blockers, add regression tests, run bash scripts/agent/verify.sh, push to this branch, update the PR evidence, and stop before merge or deployment.
+```
+
+A narrower command such as `@codex fix the P1 issue` is preferred when one finding is being addressed.
+
+## Optional scheduled queue automation
+
+Codex app automations may periodically inspect the connected Cascada repository and select at most one authorized issue. This is optional and must be behaviorally tested before it is called unattended automation.
+
+Eligible issues must:
+
+- be open;
+- have `ai:build`;
+- have exactly one non-BLACK risk label;
+- not have `ai:building`, `ai:managed`, `ai:ready-for-shan`, or `ai:needs-shan`;
+- be assigned to Shan or contain explicit written authorization from Shan;
+- contain a material objective, acceptance criteria, non-goals, failure paths, and evidence requirements.
+
+The scheduled task must apply the initial implementation contract above, select at most one issue per run, and do nothing when the queue is empty. A local app automation requires the computer and Codex app to be available; a delegated cloud task may continue in the background.
+
+## Human merge gate
 
 When CI is green and all required reviews are clear:
-- add ai:ready-for-shan to the governing issue;
-- remove ai:building and ai:needs-shan if present;
-- post a concise final evidence summary;
-- stop at the human merge gate.
 
-Do not merge, approve, enable auto-merge, deploy, or perform production writes.
-```
+- post an evidence summary;
+- mark the issue `ai:ready-for-shan`;
+- stop.
+
+Codex, GLM, Grok, ChatGPT, and GitHub automation may not merge or deploy.
 
 ## First live task
 
-Issue #12 remains the bootstrap task. Do not apply `ai:build` until all of the following are verified:
+Issue #12 remains the bootstrap task. Do not apply `ai:build` until:
 
+- PR #35 is merged after explicit approval;
 - Codex is signed in through ChatGPT Pro rather than an API key;
-- Cascada is connected in Codex;
-- the setup command succeeds;
-- Codex can create and push a disposable task branch;
-- automatic Codex PR review is enabled;
-- the API-backed GitHub implementation and repair workflows are absent from `main`;
-- the independent-review plan is recorded.
+- Cascada is connected to Codex;
+- `bash scripts/agent/setup.sh` succeeds;
+- Codex can create and push a disposable draft-PR branch;
+- automatic Codex PR review or `@codex review` is verified;
+- the API-backed development workflows are absent from `main`;
+- the GLM independent-review path is available.
 
-The first task must remain draft and stop before merge.
+The first implementation must remain draft and stop before merge.
