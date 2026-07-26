@@ -9,7 +9,33 @@ const ALWAYS_FORBIDDEN_WORKFLOW_PATTERNS = [
   {
     pattern: /OPENAI_API_KEY/i,
     reason:
-      "GitHub workflows may not receive OPENAI_API_KEY in any letter case; product-runtime credentials belong in the application hosting boundary",
+      "GitHub workflows may not reference OPENAI_API_KEY in any letter case; product-runtime credentials belong in the application hosting boundary",
+  },
+  {
+    pattern: /\$\{\{\s*secrets(?:\.|\[)/i,
+    reason:
+      "GitHub workflows may not read repository secrets; software-development and product-runtime credentials belong outside GitHub Actions",
+  },
+  {
+    pattern: /(?:^|[,{])\s*["']?secrets["']?\s*:/i,
+    reason:
+      "GitHub workflows may not declare reusable-workflow secrets or secret inheritance",
+  },
+  {
+    pattern: /^\s*\?\s*["']?secrets["']?\s*(?:#.*)?$/i,
+    reason:
+      "GitHub workflows may not use an explicit YAML key for reusable-workflow secrets",
+  },
+  {
+    pattern:
+      /(?:^|[\s:,\[{])(?:&|\*)[A-Za-z_][A-Za-z0-9_-]*(?=$|[\s,}\]])/,
+    reason:
+      "GitHub workflows may not use YAML anchors or aliases because they can obscure secret inheritance and authority",
+  },
+  {
+    pattern: /api\.openai\.com/i,
+    reason:
+      "GitHub workflows may not call the OpenAI API directly for software-development work",
   },
   {
     pattern: /openai\/codex-action/i,
@@ -41,9 +67,6 @@ const RETIRED_FILES = [
   ".github/codex-product-runtime-workflows.json",
 ];
 
-const UNSCOPED_SECRETS_REASON =
-  "Reusable-workflow secrets must be an explicit YAML mapping; scalar, inherited, aliased, tagged, and block-scalar forms are rejected";
-
 async function exists(path) {
   try {
     await access(path, constants.F_OK);
@@ -66,45 +89,11 @@ async function workflowFiles(root) {
 
 function lineNumberFor(content, pattern) {
   const lines = content.split(/\r?\n/);
-  const index = lines.findIndex((line) => pattern.test(line));
-  return index < 0 ? null : index + 1;
-}
-
-function withoutTrailingComment(value) {
-  return value.replace(/\s+#.*$/, "").trim();
-}
-
-function isExplicitSecretsMapping(value) {
-  if (value === "") return true;
-  return value.startsWith("{") && value.endsWith("}");
-}
-
-function inspectSecretsDeclarations(content) {
-  const findings = [];
-  const lines = content.split(/\r?\n/);
-
-  lines.forEach((line, index) => {
-    if (/^\s*#/.test(line)) return;
-
-    const blockKey = line.match(/^\s*secrets\s*:\s*(.*?)\s*$/i);
-    if (blockKey) {
-      const value = withoutTrailingComment(blockKey[1]);
-      if (!isExplicitSecretsMapping(value)) {
-        findings.push({ line: index + 1, reason: UNSCOPED_SECRETS_REASON });
-      }
-      return;
-    }
-
-    const flowKey = line.match(/(?:^|[,{])\s*secrets\s*:\s*(\{[^}]*\}|[^,}]+)/i);
-    if (flowKey) {
-      const value = withoutTrailingComment(flowKey[1]);
-      if (!isExplicitSecretsMapping(value)) {
-        findings.push({ line: index + 1, reason: UNSCOPED_SECRETS_REASON });
-      }
-    }
+  const index = lines.findIndex((line) => {
+    if (/^\s*#/.test(line)) return false;
+    return pattern.test(line);
   });
-
-  return findings;
+  return index < 0 ? null : index + 1;
 }
 
 function inspectWorkflow(path, content) {
@@ -116,10 +105,6 @@ function inspectWorkflow(path, content) {
     if (line != null) {
       findings.push({ file: normalized, line, reason: rule.reason });
     }
-  }
-
-  for (const finding of inspectSecretsDeclarations(content)) {
-    findings.push({ file: normalized, ...finding });
   }
 
   return findings;
@@ -151,7 +136,7 @@ async function main() {
   const findings = await inspectCodexSubscriptionBoundary();
   if (findings.length === 0) {
     process.stdout.write(
-      "Codex subscription boundary passed: no API-backed development workflow is active.\n",
+      "Codex subscription boundary passed: GitHub workflows contain no development-agent API path or repository-secret access.\n",
     );
     return;
   }
