@@ -35,22 +35,35 @@ test("accepts ordinary CI workflows without OpenAI development credentials", asy
   });
 });
 
-test("rejects OPENAI_API_KEY in every GitHub workflow regardless of name or marker", async () => {
+test("rejects OPENAI_API_KEY in every GitHub workflow and every letter case", async () => {
   await withRepository(async (root) => {
     await writeWorkflow(root, "product-openai.yml", [
       "name: Run product AI evaluation",
-      "# codex-subscription-boundary: product-runtime-only",
       "on: workflow_dispatch",
       "permissions: read-all",
       "jobs:",
       "  evaluate:",
       "    runs-on: ubuntu-24.04",
       "    env:",
-      "      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}",
+      "      provider_key: ${{ secrets.openai_api_key }}",
+    ]);
+    await writeWorkflow(root, "mixed-case.yml", [
+      "name: Mixed case credential",
+      "on: workflow_dispatch",
+      "jobs:",
+      "  evaluate:",
+      "    runs-on: ubuntu-24.04",
+      "    env:",
+      "      provider_key: ${{ secrets.OpenAI_Api_Key }}",
     ]);
 
     const findings = await inspectCodexSubscriptionBoundary(root);
-    assert.ok(findings.some((finding) => finding.reason.includes("may not receive OPENAI_API_KEY")));
+    assert.equal(
+      findings.filter((finding) =>
+        finding.reason.includes("may not receive OPENAI_API_KEY"),
+      ).length,
+      2,
+    );
   });
 });
 
@@ -70,8 +83,14 @@ test("rejects official Codex action, direct package use, and codex exec", async 
 
     const findings = await inspectCodexSubscriptionBoundary(root);
     assert.ok(findings.some((finding) => finding.reason.includes("Codex Action")));
-    assert.ok(findings.some((finding) => finding.reason.includes("API-backed Codex package")));
-    assert.ok(findings.some((finding) => finding.reason.includes("Codex CLI execution")));
+    assert.ok(
+      findings.some((finding) =>
+        finding.reason.includes("API-backed Codex package"),
+      ),
+    );
+    assert.ok(
+      findings.some((finding) => finding.reason.includes("Codex CLI execution")),
+    );
   });
 });
 
@@ -103,25 +122,32 @@ test("rejects retired factory callers and superseded allowlist configuration", a
   });
 });
 
-test("rejects secret inheritance in a software-development workflow", async () => {
+test("rejects secrets inherit in every workflow regardless of name or formatting", async () => {
   await withRepository(async (root) => {
-    await writeWorkflow(root, "implement.yml", [
-      "name: Implement approved issue",
+    await writeWorkflow(root, "release.yml", [
+      "name: Build",
       "on: workflow_dispatch",
       "jobs:",
-      "  build:",
-      "    uses: owner/repo/.github/workflows/build.yml@deadbeef",
+      "  publish:",
+      "    uses: owner/repo/.github/workflows/neutral.yml@deadbeef",
       "    secrets: inherit",
+    ]);
+    await writeWorkflow(root, "inline.yml", [
+      "name: Inline inheritance",
+      "on: workflow_dispatch",
+      "jobs:",
+      "  publish: { uses: owner/repo/.github/workflows/neutral.yml@deadbeef, secrets: inherit }",
     ]);
 
     const findings = await inspectCodexSubscriptionBoundary(root);
-    assert.ok(
-      findings.some((finding) => finding.reason.includes("may not inherit")),
+    assert.equal(
+      findings.filter((finding) => finding.reason.includes("may not inherit")).length,
+      2,
     );
   });
 });
 
-test("does not reject an unrelated reusable workflow with no agent indicator or OpenAI key", async () => {
+test("allows reusable workflows with explicit non-OpenAI secret mapping", async () => {
   await withRepository(async (root) => {
     await writeWorkflow(root, "release.yml", [
       "name: Publish static documentation",
@@ -129,7 +155,8 @@ test("does not reject an unrelated reusable workflow with no agent indicator or 
       "jobs:",
       "  publish:",
       "    uses: owner/repo/.github/workflows/docs.yml@deadbeef",
-      "    secrets: inherit",
+      "    secrets:",
+      "      docs_token: ${{ secrets.DOCS_TOKEN }}",
     ]);
 
     assert.deepEqual(await inspectCodexSubscriptionBoundary(root), []);
