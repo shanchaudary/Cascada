@@ -72,8 +72,10 @@ A route, class, schema, UI panel, or passing unit test does not by itself prove 
 - No complete Stripe test payment → webhook → diagnostic → report → delivery lifecycle has been accepted.
 - Production deployment, backups, restore, rollback, alerting, and incident response are not accepted.
 - The delivery CI still measures 133 ESLint warnings. The bootstrap issue must reach zero without blanket suppression.
-- The OpenAI API-key-backed Codex GitHub implementation and repair path was architecturally wrong for Shan's ChatGPT Pro entitlement and is being removed.
-- Codex Pro account connection, environment setup, scheduled queue automation, and automatic GitHub review have not yet been behaviorally accepted for Cascada.
+- The API-key-backed Codex implementation and repair workflows and `.ai-factory/project.json` are absent from this candidate PR head. They remain on `main` until PR #35 is explicitly approved and merged.
+- Pro-backed Codex GitHub review has been behaviorally exercised on PR #35 and produced actionable exact-head findings.
+- A write-capable Codex cloud environment for implementation and repair has not yet been created or accepted for Cascada.
+- Optional scheduled queue automation has not been behaviorally accepted.
 - A GLM review-only path without an OpenAI API dependency has not yet been accepted.
 - No material issue has completed the corrected Codex Pro → CI → independent review → repair → human merge cycle.
 
@@ -81,9 +83,9 @@ A route, class, schema, UI panel, or passing unit test does not by itself prove 
 
 ```text
 GitHub CI foundation: implemented and exercised
-API-backed Codex factory: rejected for Cascada and being removed
-Pro-backed Codex environment: not yet behaviorally accepted
-Automatic Codex PR review: not yet behaviorally accepted
+API-backed Codex workflows: absent from PR #35 candidate head; still on main pending merge
+Pro-backed Codex GitHub review: exercised on PR #35
+Pro-backed Codex implementation environment: not yet behaviorally accepted
 GLM review-only integration: not yet behaviorally accepted
 M0 supervised delivery exit gate: NOT PASSED
 ```
