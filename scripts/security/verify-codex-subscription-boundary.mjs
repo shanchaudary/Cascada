@@ -56,9 +56,9 @@ const ALWAYS_FORBIDDEN_WORKFLOW_PATTERNS = [
 
 const NORMALIZED_FORBIDDEN_WORKFLOW_PATTERNS = [
   {
-    pattern: /\$\{\{secrets(?:\.|\[)/i,
+    pattern: /\$\{\{[^}]*\bsecrets\b/i,
     reason:
-      "GitHub workflows may not read repository secrets; software-development and product-runtime credentials belong outside GitHub Actions",
+      "GitHub workflows may not read or serialize the repository secrets context; software-development and product-runtime credentials belong outside GitHub Actions",
   },
   {
     pattern: /api\.openai\.com/i,
