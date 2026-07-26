@@ -19,7 +19,7 @@ Codex may create a bounded branch, commits, and a draft pull request. Codex may 
 Codex engineering work must be authenticated by signing in to Codex with Shan's ChatGPT account through one of these supported surfaces:
 
 - Codex app;
-- Codex web/cloud;
+- Codex cloud tasks delegated from Codex;
 - Codex CLI;
 - Codex IDE extension.
 
@@ -29,19 +29,19 @@ This delivery rule does not remove or alter any OpenAI credential that Cascada's
 
 ## Current Pro-plan limitation
 
-A ChatGPT Pro subscription supports Codex app, web/cloud, CLI, IDE, and GitHub code review. It does not currently provide the programmatic access token needed to launch a personal Codex task directly from a GitHub Actions event.
+A ChatGPT Pro subscription supports the Codex app, background cloud tasks, CLI, IDE, and GitHub code review. It does not currently provide the programmatic access token needed to launch a personal Codex task directly from a GitHub Actions event.
 
 Therefore:
 
 - an `ai:build` label is a queue authorization, not a direct model invocation;
 - Codex app automation may poll the queue on a schedule;
-- a Codex cloud task may also be delegated from the Codex interface;
+- a cloud task may be delegated from Codex;
 - the repository must not pretend that a GitHub label alone starts Pro-backed Codex;
 - no API-billed fallback is permitted.
 
 ## One-time Codex setup
 
-1. Open the Codex app or Codex web and sign in with the ChatGPT account that has the Pro subscription.
+1. Open the Codex app and sign in with the ChatGPT account that has the Pro subscription.
 2. If the Codex CLI previously used an API key, update it, run `codex logout`, then sign in with ChatGPT.
 3. Connect GitHub and grant Codex access to `shanchaudary/Cascada`.
 4. Create or select a Cascada environment/project.
