@@ -110,7 +110,7 @@ Required:
 
 - CI passes;
 - fresh-context review;
-- no unresolved blocking conversation.
+- all review conversations are resolved.
 
 ### YELLOW
 
@@ -121,7 +121,7 @@ Required:
 - CI passes;
 - one independent technical review;
 - all blocking findings repaired;
-- no unresolved blocking conversation.
+- all review conversations are resolved.
 
 ### RED
 
@@ -185,7 +185,7 @@ A PR must include:
 
 - No direct pushes to `main`.
 - No merge while required CI is pending or failing.
-- No unresolved blocking finding.
+- No unresolved review conversation.
 - New commits invalidate stale review.
 - Deployment requires a separate approved release task.
 - Codex, GLM, Grok, ChatGPT, and GitHub automation may not merge or deploy.
