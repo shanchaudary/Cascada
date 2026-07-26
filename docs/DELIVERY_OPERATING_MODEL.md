@@ -35,7 +35,7 @@ ChatGPT is not the routine branch implementer.
 
 ### Codex — primary implementation and repair agent
 
-Codex must be authenticated through Shan's ChatGPT Pro account in Codex app, web/cloud, CLI, or IDE. Cascada development must not use an OpenAI API key as a hidden substitute for the Pro entitlement.
+Codex must be authenticated through Shan's ChatGPT Pro account in the Codex app, Codex cloud tasks, CLI, or IDE. Cascada development must not use an OpenAI API key as a hidden substitute for the Pro entitlement.
 
 Responsibilities:
 
@@ -92,7 +92,7 @@ Do not combine unrelated features, cleanup, refactors, migrations, and integrati
 
 The `ai:build` label authorizes an issue for the Codex queue. It does not itself invoke a model.
 
-On ChatGPT Pro, the supported implementation surfaces are Codex app, web/cloud, CLI, and IDE. A scheduled Codex app automation may poll the issue and PR queues using the contracts in `docs/CODEX_PRO_AUTOMATION.md`.
+On ChatGPT Pro, the supported implementation surfaces are the Codex app, background cloud tasks, CLI, and IDE. A scheduled Codex app automation may poll the issue and PR queues using the contracts in `docs/CODEX_PRO_AUTOMATION.md`.
 
 Current limitation: a personal Pro plan does not provide the programmatic access token required for a GitHub event to launch a Codex task. The repository must not claim event-driven Pro execution until OpenAI provides and the project verifies that capability. No API-billed fallback is permitted.
 
