@@ -104,8 +104,11 @@ jobs:
       - name: Run unit and regression tests
         run: npm test
 
+      - name: Test the production advisory gate
+        run: node --test tests/security/production-advisory-gate.test.mjs
+
       - name: Reject high or critical production dependency findings
-        run: npm audit --omit=dev --audit-level=high
+        run: node scripts/security/audit-production.mjs
 
       - name: Build production application
         run: npm run build
