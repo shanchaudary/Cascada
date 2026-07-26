@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   generate:
-    if: ${{ github.head_ref == 'fix/production-advisory-gate' && !contains(github.event.pull_request.head.sha, 'never-match') }}
+    if: ${{ github.head_ref == 'fix/production-advisory-gate' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -40,15 +40,16 @@ jobs:
         if: ${{ steps.guard.outputs.generate == 'true' }}
         run: |
           set -euo pipefail
-          npm pkg set 'overrides.fast-uri=3.1.4'
-          npm pkg set 'overrides.postcss=8.5.18'
-          npm pkg set 'overrides.protobufjs=7.6.5'
-          npm pkg set 'overrides.sharp=$sharp'
           npm install --package-lock-only --save-exact \
             next@15.5.21 \
             next-auth@5.0.0-beta.32 \
             sharp@0.35.3
           npm install --package-lock-only --save-dev --save-exact postcss@8.5.18
+          npm pkg set 'overrides.fast-uri=3.1.4'
+          npm pkg set 'overrides.postcss=8.5.18'
+          npm pkg set 'overrides.protobufjs=7.6.5'
+          npm pkg set 'overrides.sharp=$sharp'
+          npm install --package-lock-only
 
       - name: Validate exact patched versions and scope
         if: ${{ steps.guard.outputs.generate == 'true' }}
