@@ -71,7 +71,7 @@ test("rejects OPENAI_API_KEY in every letter case", async () => {
   });
 });
 
-test("rejects generic repository-secret reads and every secrets declaration form", async () => {
+test("rejects generic repository-secret reads, whole-context serialization, and every secrets declaration form", async () => {
   await withRepository(async (root) => {
     await writeWorkflow(root, "secret-reference.yml", [
       "name: Generic secret read",
@@ -81,6 +81,15 @@ test("rejects generic repository-secret reads and every secrets declaration form
       "    runs-on: ubuntu-24.04",
       "    env:",
       "      token: ${{ secrets.MODEL_TOKEN }}",
+    ]);
+    await writeWorkflow(root, "whole-context.yml", [
+      "name: Whole secrets context",
+      "on: workflow_dispatch",
+      "jobs:",
+      "  publish:",
+      "    runs-on: ubuntu-24.04",
+      "    env:",
+      "      all_repository_secrets: ${{ toJSON(secrets) }}",
     ]);
     await writeWorkflow(root, "block-map.yml", [
       "name: Reusable block mapping",
@@ -118,6 +127,7 @@ test("rejects generic repository-secret reads and every secrets declaration form
     const findings = await inspectCodexSubscriptionBoundary(root);
     for (const file of [
       "secret-reference.yml",
+      "whole-context.yml",
       "block-map.yml",
       "inline-map.yml",
       "quoted-key.yml",
@@ -125,6 +135,11 @@ test("rejects generic repository-secret reads and every secrets declaration form
     ]) {
       assert.ok(findingsFor(findings, file).length > 0, `${file} must fail closed`);
     }
+    assert.ok(
+      findingsFor(findings, "whole-context.yml").some((finding) =>
+        finding.reason.includes("read or serialize the repository secrets context"),
+      ),
+    );
   });
 });
 
@@ -152,7 +167,7 @@ test("rejects secret expressions and OpenAI endpoints split across block scalars
     );
     assert.ok(
       findings.some((finding) =>
-        finding.reason.includes("may not read repository secrets"),
+        finding.reason.includes("read or serialize the repository secrets context"),
       ),
     );
     assert.ok(
