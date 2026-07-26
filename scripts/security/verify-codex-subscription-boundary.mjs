@@ -63,8 +63,9 @@ function lineNumberFor(content, pattern) {
 
 function isDevelopmentAgentWorkflow(path, content) {
   const normalized = path.replaceAll("\\", "/");
+  const classificationContent = content.replaceAll(PRODUCT_RUNTIME_MARKER, "");
   return DEVELOPMENT_AGENT_INDICATORS.some(
-    (pattern) => pattern.test(normalized) || pattern.test(content),
+    (pattern) => pattern.test(normalized) || pattern.test(classificationContent),
   );
 }
 
