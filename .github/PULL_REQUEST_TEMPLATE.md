@@ -13,16 +13,18 @@ State the single outcome delivered by this pull request.
 - Head branch:
 - Head commit:
 - Initial `git status --short`:
+- Implementation surface: Codex app / Codex cloud / Codex CLI / human / other
+- Codex authentication: ChatGPT subscription / not applicable
 
 ## Scope
 
 ### Files changed
 
-- 
+-
 
 ### Explicitly not changed
 
-- 
+-
 
 ## Implementation
 
@@ -32,12 +34,14 @@ Describe the production behavior changed. Do not substitute a file list for an e
 
 | Check | Command | Result |
 |---|---|---|
+| Agent contract | `bash scripts/agent/verify.sh` | |
 | Typecheck | `npm run typecheck` | |
-| Lint | `npm run lint -- --max-warnings=148` | |
+| Lint | `npm run lint -- --max-warnings=0` | |
 | Unit/regression | `npm test` | |
 | Prisma | `npx prisma validate` | |
+| Production advisory gate | `node scripts/security/audit-production.mjs` | |
 | Build | `npm run build` | |
-| Browser/E2E | `npx playwright test` or `Not applicable — explain` | |
+| Browser/E2E | `npm run test:e2e` or `Not applicable — explain` | |
 
 Include exact counts, skips, failures, and errors. Attach logs or artifacts when output is too large.
 
@@ -63,6 +67,7 @@ Explanation:
 - Regulatory write-mode ingestion: NO / YES — explain
 - Payment/email/ERP/Temporal live operation: NO / YES — explain
 - Secrets touched: NO / YES — names only, never values
+- OpenAI API used for software-development agent work: NO
 
 ## Review requirements
 
@@ -70,7 +75,7 @@ Risk: GREEN / YELLOW / RED / BLACK
 
 Required independent reviewers:
 
-- [ ] Codex fresh-context review
+- [ ] Codex automatic or fresh-context review
 - [ ] Grok security/product red team
 - [ ] GLM failure-path/test review
 - [ ] ChatGPT architecture/final review

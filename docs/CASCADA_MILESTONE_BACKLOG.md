@@ -2,33 +2,38 @@
 
 Milestones are ordered by risk reduction and product proof, not by the number of screens or connector classes implemented.
 
-## M0 — Automated delivery foundation
+## M0 — Supervised delivery foundation
 
 ### Outcome
 
-A bounded issue can travel through branch, PR, deterministic CI, independent review, and merge without direct edits to `main` or repeated founder command relay.
+A bounded issue can travel through Codex implementation, branch, draft PR, deterministic CI, independent review, repair, and human merge decision without direct edits to `main` or repeated founder command relay.
 
 ### Required deliverables
 
 - pull-request CI;
 - PostgreSQL and Redis test services;
 - Prisma migration and seed verification;
-- typecheck, lint ceiling, tests, audit, and production build;
+- typecheck, strict lint target, tests, advisory gate, and production build;
 - Playwright critical authentication/dashboard smoke;
 - implementation/review issue templates;
 - PR evidence template;
 - current-product-truth document;
 - delivery operating model;
 - protected-main ruleset;
-- commit-pinned AI factory consumer adapter;
-- authorized-actor and issue-label execution gate;
-- OpenAI implementation plus GLM independent-review loop;
-- exact factory-dispatched CI provenance checks;
-- GitHub repository secret and protected-main verification.
+- Codex app, cloud-task, CLI, or IDE environment authenticated through ChatGPT Pro;
+- GitHub connection and automatic or explicit `@codex review` pull-request review;
+- verified PR-context implementation and repair controls, including `@codex fix the CI failures`;
+- optional scheduled Codex issue-queue automation only after behavioral proof;
+- authorized-actor and issue-label queue gate;
+- GLM independent review path that does not require an OpenAI API key;
+- exact CI evidence and stale-head checks;
+- account-level protected-main verification.
+
+The former OpenAI API-key-backed GitHub implementation and repair actions are not part of the accepted architecture.
 
 ### Exit gate
 
-One material, non-documentation Cascada issue completes issue → Codex → draft PR → authoritative CI → GLM independent review → repair loop → explicitly approved merge. A docs-only smoke may test wiring but cannot satisfy this exit gate.
+One material, non-documentation Cascada issue completes issue → Pro-backed Codex → draft PR → authoritative CI → GLM independent review → repair loop → explicitly approved merge. A docs-only smoke may test wiring but cannot satisfy this exit gate.
 
 ## M1 — Authentication and tenant authority
 

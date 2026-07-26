@@ -1,12 +1,12 @@
-name: AI factory engineering task
-description: Material, testable production change for the supervised factory
-title: "[AI] "
+name: Codex engineering task
+description: Material, testable production change for the supervised Codex queue
+title: "[Codex] "
 labels: ["ai:risk:yellow"]
 body:
   - type: markdown
     attributes:
       value: |
-        Complete this contract before an allowed actor adds `ai:build`. Adding `ai:build` is the authorization event. BLACK-risk work is rejected. RED work always requires explicit founder approval before merge.
+        Complete this contract before Shan adds `ai:build`. The label authorizes the issue for the Codex Pro queue; it does not invoke a GitHub-hosted model. BLACK-risk work is rejected. RED work always requires explicit founder approval before merge.
   - type: textarea
     id: problem
     attributes:

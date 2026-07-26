@@ -11,6 +11,8 @@ export APP_URL="${APP_URL:-http://127.0.0.1:3000}"
 export ENCRYPTION_KEY="${ENCRYPTION_KEY:-cascada-agent-encryption-key-32}"
 export LOG_LEVEL="${LOG_LEVEL:-warn}"
 
+node --test tests/security/codex-subscription-boundary.test.mjs
+node scripts/security/verify-codex-subscription-boundary.mjs
 npm run typecheck
 npm run lint -- --max-warnings=0
 npm test
@@ -19,4 +21,4 @@ npx prisma validate
 node scripts/security/audit-production.mjs
 npm run build
 
-printf 'Bounded agent verification passed. Service-backed integration and browser proof remain CI responsibilities.\n'
+printf 'Bounded Codex verification passed. Service-backed integration and browser proof remain CI responsibilities.\n'

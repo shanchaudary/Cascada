@@ -1,91 +1,143 @@
-# AI Software Factory Setup for Cascada
+# Codex Pro Delivery Setup for Cascada
 
-This document defines Cascada's repository-side installation of the project-agnostic GitHub Actions factory.
+This document defines Cascada's delivery setup using Codex authenticated through Shan's ChatGPT Pro account. It replaces the former OpenAI API-key-backed GitHub Actions implementation and repair path.
 
-## Authority and pin
+## Authority
 
-- GitHub issues define work.
+- GitHub issues define approved work.
 - `AGENTS.md` is the standing repository law.
-- `.ai-factory/project.json` defines Cascada's real setup, verification, context, limits, models, and allowed actors.
-- Both thin caller workflows must reference the same full 40-character factory commit.
-- The accepted central release pin is `15f929d6386e502b601878fa2bc8fa3bc9bca851`.
-- The pin is the reviewed merge commit on the central factory's `main` branch.
+- GitHub pull requests hold implementation evidence and review findings.
+- `Cascada CI` is the authoritative machine-verifiable gate.
+- Codex is the primary implementation and repair agent.
+- GLM remains an independent failure-path reviewer.
+- Shan retains merge, release, production-write, credential, and roadmap authority.
 
-Codex may create a bounded branch, commits, and a draft pull request for an authorized issue. The factory may not merge, deploy, access production credentials, or perform production writes.
+Codex may create a bounded branch, commits, and a draft pull request. Codex may not merge, deploy, use production credentials, or perform production writes.
 
-## Repository files
+## Authentication boundary
 
-The installation consists of:
+Codex engineering work must be authenticated by signing in to Codex with Shan's ChatGPT account through one of these supported surfaces:
 
-- `.ai-factory/project.json`;
-- `.github/workflows/ai-implement.yml`;
-- `.github/workflows/ai-supervise.yml`;
-- `.github/ISSUE_TEMPLATE/ai-task.yml`;
-- optional `factory_pr` and `factory_issue` inputs on `Cascada CI`'s `workflow_dispatch` trigger.
+- Codex app;
+- Codex cloud tasks delegated from Codex;
+- Codex CLI;
+- Codex IDE extension.
 
-Generated changes to factory configuration, GitHub workflows, `AGENTS.md`, credentials, secrets, symlinks, submodules, and binaries are rejected by the central engine.
+Do not configure `OPENAI_API_KEY` as a GitHub repository secret for Codex implementation or repair. The former GitHub-hosted Codex Action used API billing and is removed from this candidate branch.
 
-## Repository secrets
+No active GitHub workflow may receive `OPENAI_API_KEY`. A future product-runtime OpenAI credential belongs in the deployed application's hosting or secret-management boundary, not in the software-development workflow. Product runtime code and local configuration outside GitHub Actions are not removed or disabled by this delivery rule.
 
-Add these values through GitHub repository settings only:
+## Current Pro-plan limitation
 
-- `OPENAI_API_KEY` for Codex implementation and repair;
-- `ZAI_API_KEY` for GLM 5.2 independent review.
+A ChatGPT Pro subscription supports the Codex app, background cloud tasks, CLI, IDE, and GitHub code review. It does not currently provide a verified personal programmatic token for launching a Codex task directly from a Cascada GitHub Actions event.
 
-Never put the values in source, `.env` files, issue text, workflow inputs, logs, comments, screenshots, or chat. Configure provider-side spend caps and alerts before the first live task.
+Therefore:
 
-## Authorization
+- an `ai:build` label is a queue authorization, not a direct model invocation;
+- initial work is delegated from the Codex app, CLI, IDE, or a Codex cloud task;
+- connected PRs use official controls such as `@codex review`, `@codex fix the CI failures`, and a specific `@codex` repair instruction;
+- optional scheduled Codex app queue polling may be enabled only after behavioral testing;
+- the repository must not pretend that a GitHub label alone starts Pro-backed Codex;
+- no API-billed fallback is permitted.
 
-Create the authorization labels in repository settings before the first task:
+## One-time Codex setup
+
+1. Open the Codex app and sign in with the ChatGPT account that has the Pro subscription.
+2. If the Codex CLI previously used an API key, update it, run `codex logout`, then sign in with ChatGPT.
+3. Connect GitHub and grant Codex access to `shanchaudary/Cascada`.
+4. Create or select a Cascada environment/project.
+5. Use this repository setup command:
+
+```bash
+bash scripts/agent/setup.sh
+```
+
+6. Confirm Codex can read `AGENTS.md`, create an isolated branch or worktree, run repository commands, and push a draft pull request.
+7. Enable Codex automatic pull-request review for Cascada, then verify `@codex review` on a disposable or bounded PR.
+8. Verify a PR-context repair using a specific command from `docs/CODEX_PRO_AUTOMATION.md`.
+9. Enable optional scheduled queue automation only after the primary PR controls are proven.
+
+Do not provide production database credentials, payment credentials, ERP credentials, email credentials, deployment credentials, or unrestricted cloud credentials to the Codex development environment.
+
+## Task authorization
+
+Use the existing task template and labels:
 
 - `ai:build`;
-- `ai:risk:green`, `ai:risk:yellow`, `ai:risk:red`, and `ai:risk:black`.
+- exactly one of `ai:risk:green`, `ai:risk:yellow`, `ai:risk:red`, or `ai:risk:black`;
+- state labels such as `ai:building`, `ai:managed`, `ai:ready-for-shan`, and `ai:needs-shan`.
 
-The factory creates its own `ai:building`, `ai:managed`, `ai:repairing`, `ai:ready-for-shan`, `ai:needs-shan`, and numbered `ai:repair:<n>` state labels when it starts. Missing authorization labels are an installation blocker, not permission to bypass the state machine.
+Authorization sequence:
 
-1. Create a complete issue from the AI factory engineering task template.
-2. Apply exactly one `ai:risk:green`, `ai:risk:yellow`, or `ai:risk:red` label.
-3. Confirm the issue contains objective acceptance criteria, failure paths, non-goals, and evidence.
-4. An allowed actor applies `ai:build` last. That label event is the execution authorization.
+1. Create a complete issue with objective, acceptance criteria, failure paths, non-goals, allowed effects, and evidence requirements.
+2. Apply exactly one non-BLACK risk label.
+3. Confirm the issue is assigned to or explicitly authorized by Shan.
+4. Apply `ai:build` last.
+5. Codex works only on an authorized issue that is not already building, blocked, or completed.
 
-BLACK-risk tasks are rejected. RED work may be implemented and reviewed but requires explicit founder approval before merge.
+BLACK-risk work must not execute. RED-risk work requires the full review set and explicit Shan approval before merge.
 
 ## Verification split
 
-The isolated model runner performs the real repository-local gates that do not need services:
+Codex must run the repository-local verification contract:
 
 ```bash
-npm ci
-npx prisma generate
-npx prisma validate
-npm run typecheck
-npm run lint -- --max-warnings=0
-npm test
-npm audit --omit=dev --audit-level=high
-npm run build
+bash scripts/agent/verify.sh
 ```
 
-The authoritative `Cascada CI` workflow additionally provisions disposable PostgreSQL and Redis services, applies committed migrations, seeds deterministic data, and runs the Playwright critical-flow smoke.
+That contract covers locked installation assumptions, typecheck, strict lint, unit/regression tests, Prisma validation, the production advisory gate, and production build.
 
-The current 133-warning baseline means a live generated task cannot pass strict factory verification until the bounded lint-debt task reaches zero. The temporary CI ceiling only prevents regression; it is not acceptance.
+`Cascada CI` remains authoritative for:
+
+- disposable PostgreSQL and Redis services;
+- committed migrations;
+- deterministic seed execution;
+- typecheck and lint policy;
+- unit/regression tests;
+- production advisory verification;
+- production build;
+- Playwright authentication, dashboard, and tenant smoke.
+
+Codex must diagnose ordinary failures and continue repairing within the governing issue. It may stop only for a genuine product decision, contradictory authority, missing external access, unsafe data operation, or a limit that prevents truthful completion.
+
+## Review and repair
+
+Every implementation requires a second-pass review.
+
+- Codex automatic GitHub review or `@codex review` provides the first fresh-context review.
+- `@codex fix the CI failures` may start a bounded PR-context repair after the failure is classified as in scope.
+- Specific blocking findings may be repaired with a bounded `@codex` comment that names those findings.
+- GLM remains required for YELLOW/RED failure-path review once the review-only integration is enabled.
+- Grok and ChatGPT remain required for the RED-risk areas defined in `docs/DELIVERY_OPERATING_MODEL.md`.
+- Blocking findings must be repaired on the same task branch or truthfully escalated.
+- New commits invalidate stale reviews.
+
+Until the GLM review-only path is installed without an OpenAI API dependency, M0 remains incomplete and no material Cascada milestone may be called factory-proven.
 
 ## Protected main
 
-Before accepting M0, protect `main` and require:
+Protect `main` and require:
 
-- pull requests and required review;
+- pull requests;
 - `Verify application` from `Cascada CI`;
-- `ai-factory/supervision`;
-- dismissal of stale approvals and resolution of review conversations;
+- the applicable independent-review requirements;
+- dismissal of stale approvals;
+- approval of the latest reviewable push;
+- resolution of review conversations;
 - rejection of direct pushes, force pushes, branch deletion, and routine administrator bypass.
+
+Do not require the retired `ai-factory/supervision` status check after the API-backed workflow is removed.
 
 ## Acceptance sequence
 
-1. Merge the central factory release only after explicit approval.
-2. Merge this consumer installation only after explicit approval and green review evidence.
-3. Add the two repository secrets without exposing their values.
-4. Verify unauthorized and BLACK-risk issues are rejected.
-5. Complete the bounded zero-warning bootstrap task.
-6. Complete a material, non-documentation Cascada pilot through implementation, CI, GLM review, repair, and manual merge decision.
+1. Merge the repository-side removal of the API-backed Codex workflows.
+2. Connect Cascada to Codex using ChatGPT sign-in.
+3. Verify a read-only Codex task against the repository.
+4. Verify an initial bounded implementation from the Codex app, CLI, IDE, or cloud.
+5. Verify automatic Codex review and `@codex review`.
+6. Verify a bounded PR-context repair command.
+7. Install or verify a GLM review-only path that does not require an OpenAI API key.
+8. Complete issue #12 through Codex implementation, CI, independent review, repair, and a human merge decision.
+9. Complete a material non-documentation Cascada pilot before M0 is accepted.
 
-No step above is proof that Cascada itself is production-ready. Product readiness remains governed by `docs/CURRENT_PRODUCT_TRUTH.md` and milestones M1 through M8.
+No delivery-system milestone is proof that Cascada itself is production-ready.

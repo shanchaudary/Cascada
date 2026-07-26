@@ -1,6 +1,6 @@
 # GitHub Protected Main Setup
 
-Repository files cannot create account-level branch rules by themselves. Apply and verify the following ruleset for branch `main` before M0 is accepted.
+Repository files cannot create account-level branch rules by themselves. Apply and verify this ruleset for branch `main` before M0 is accepted.
 
 ## Target
 
@@ -13,13 +13,12 @@ Branch: main
 
 - Require a pull request before merging.
 - Require at least one approving review for YELLOW work.
-- Require CODEOWNERS approval for RED work through the operating process.
+- Require the full RED-risk review set through the operating process.
 - Dismiss stale approvals when new commits are pushed.
 - Require approval of the most recent reviewable push.
 - Require all review conversations to be resolved.
 - Require status checks to pass before merging.
 - Required check: `Verify application` from workflow `Cascada CI`.
-- After the first factory-managed PR creates it, also require `ai-factory/supervision`. Do not accept M0 until both checks are enforced.
 - Require the branch to be up to date before merging, unless a merge queue is enabled.
 - Block force pushes.
 - Block branch deletion.
@@ -27,14 +26,19 @@ Branch: main
 - Do not allow routine administrator bypass.
 - Do not enable unrestricted automatic merge.
 
+Do not require the retired `ai-factory/supervision` check. That check belonged to the removed OpenAI API-key-backed implementation and repair workflow.
+
+Codex automatic review is an independent-review input, not a replacement for deterministic CI. GitHub may not expose it as a stable required status check in every configuration; enforce it through required review and conversation-resolution rules unless a verified repository check is available.
+
 ## Recommended later settings
 
-After the workflow is stable:
+After the Pro-backed Codex workflow is stable:
 
 - enable a merge queue;
-- permit auto-merge only for explicitly classified GREEN work;
-- require signed commits if the repository's operating environment supports them consistently;
-- add a deployment environment with separate approval for production.
+- permit auto-merge only for explicitly classified GREEN work after separate founder approval;
+- require signed commits if the operating environment supports them consistently;
+- add a deployment environment with separate production approval;
+- add a GLM review-only status check after that OpenAI-independent reviewer path is proven.
 
 ## Verification
 
@@ -47,6 +51,4 @@ Prove the ruleset with a disposable trial branch:
 5. Resolve all review conversations and obtain the required approval.
 6. Merge through the PR path only.
 
-The factory supervision check cannot be selected in a ruleset until GitHub has observed it at least once. Enable the deterministic CI check first, run the governed bootstrap task, then add `ai-factory/supervision` before accepting M0. This sequencing does not authorize bypassing either check on later factory-managed PRs.
-
-Record screenshots or API output in the M0 pull request or trial issue. Do not mark M0 complete from configuration screenshots alone; the rejection and merge behavior must be exercised.
+Record screenshots or API output in the M0 pull request or trial issue. Do not mark M0 complete from configuration screenshots alone; rejection and merge behavior must be exercised.

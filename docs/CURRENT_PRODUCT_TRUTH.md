@@ -1,8 +1,8 @@
 # Cascada Current Product Truth
 
-**Truth date:** 2026-07-13  
+**Truth date:** 2026-07-26  
 **Repository:** `shanchaudary/Cascada`  
-**Verified main head when this document was created:** `29842d44c6e7344195a99d3d986d4949666f2cb3`
+**Verified `main` before this delivery correction:** `552f0e41033bcab0e82e00b9aff8996105c987f3`
 
 This document separates implemented code from proven product behavior. It must be updated when a milestone changes the evidence below.
 
@@ -12,28 +12,25 @@ Cascada is intended to help food manufacturers trace a regulatory change through
 
 The product is not complete until that full chain is proven with tenant-bound persisted data, source evidence, failure handling, and a usable customer workflow.
 
-## Proven baseline
+## Proven repository baseline
 
-The accepted install/auth baseline recorded in `README.md` is commit:
+The repository has materially exercised:
 
-```text
-5b191680c9d35cc3603ce82d635f1b50ed9190fc
-```
-
-The repository states that a fresh clone was verified on 2026-07-07 for:
-
-- dependency installation;
-- Docker stack startup;
-- Prisma generation, migration, and seed;
+- locked dependency installation;
+- Prisma client generation and schema validation;
+- committed migrations against disposable PostgreSQL;
+- deterministic seed execution once against a fresh CI database;
 - TypeScript typecheck;
-- ESLint execution with existing warnings;
+- ESLint execution with a measured 133-warning baseline;
 - Vitest unit/regression tests;
+- a fail-closed production dependency advisory gate;
 - production build;
-- seeded demo login;
-- `/dashboard` route;
-- authenticated and unauthenticated session/tenant route behavior.
+- Playwright Chromium smoke for unauthenticated tenant rejection, seeded login, dashboard rendering, and authenticated tenant access;
+- pinned PostgreSQL and Redis CI services.
 
-Those claims are baseline evidence, not proof that every feature is complete.
+Cascada CI run `30188294385` passed the production advisory gate with zero HIGH/CRITICAL findings after the patched dependency graph was committed. That does not mean the complete dependency graph is risk-free or that all moderate/low findings are accepted indefinitely.
+
+These claims are baseline evidence, not proof that every feature is complete.
 
 ## Implemented and materially exercised
 
@@ -42,15 +39,16 @@ Those claims are baseline evidence, not proof that every feature is complete.
 - PostgreSQL/Prisma schema and committed migrations.
 - Redis, Temporal, Mailpit, PostgreSQL, and Apache AGE local service definitions.
 - Dashboard defensive render tests for several API-envelope and empty-state cases.
-- Bounded regulatory ingestion dry-run interfaces.
+- Bounded regulatory-ingestion interfaces.
 - Federal Register public-source handling.
 - openFDA food-enforcement ingestion scope.
 - USDA reference-data classification.
 - PipelineRun observability for explicit write-mode triggers.
 - PDF scaffold smoke.
 - Repository-wide agent operating law in `AGENTS.md`.
+- Pull-request CI and narrow authentication/dashboard browser smoke.
 
-## Implemented but not yet accepted as complete product behavior
+## Implemented but not accepted as complete product behavior
 
 - Regulatory ingestion beyond bounded source-specific checks.
 - Cascade graph and exposure calculations across the complete business chain.
@@ -67,19 +65,32 @@ A route, class, schema, UI panel, or passing unit test does not by itself prove 
 
 ## Known unproven or incomplete areas
 
-- No GitHub Actions CI workflow existed on `main` when the delivery-foundation branch was created; draft PR #2 adds one but it is not accepted until reviewed, merged, protected, and exercised.
-- No Playwright browser E2E suite existed on `main` when the delivery-foundation branch was created; draft PR #2 adds a narrow authentication/dashboard smoke, not complete product E2E proof.
 - Cross-tenant isolation has not been accepted through a complete adversarial API and browser suite.
 - One full regulation → substance → ingredient → formulation → product → customer → exposure → decision chain has not been accepted end to end.
 - No ERP sandbox sync has been accepted.
 - No complete Temporal worker/retry/recovery lifecycle has been accepted.
 - No complete Stripe test payment → webhook → diagnostic → report → delivery lifecycle has been accepted.
 - Production deployment, backups, restore, rollback, alerting, and incident response are not accepted.
-- The current locked install reports 11 moderate production dependency findings.
-- The delivery-foundation CI measured 133 lint warnings. Its temporary non-regression ceiling is not a production-readiness pass; the AI factory's generated-change verification requires zero warnings.
-- The AI software factory consumer adapter is proposed on draft PR #2 and pinned to corrected factory release commit `15f929d6386e502b601878fa2bc8fa3bc9bca851`. No live factory task has passed yet.
+- The delivery CI still measures 133 ESLint warnings. The bootstrap issue must reach zero without blanket suppression.
+- The API-key-backed Codex implementation and repair workflows and `.ai-factory/project.json` are absent from this candidate PR head. They remain on `main` until PR #35 is explicitly approved and merged.
+- Pro-backed Codex GitHub review has been behaviorally exercised on PR #35 and produced actionable exact-head findings.
+- A write-capable Codex cloud environment for implementation and repair has not yet been created or accepted for Cascada.
+- Optional scheduled queue automation has not been behaviorally accepted.
+- A GLM review-only path without an OpenAI API dependency has not yet been accepted.
+- No material issue has completed the corrected Codex Pro → CI → independent review → repair → human merge cycle.
 
-## Current release classification
+## Delivery-system classification
+
+```text
+GitHub CI foundation: implemented and exercised
+API-backed Codex workflows: absent from PR #35 candidate head; still on main pending merge
+Pro-backed Codex GitHub review: exercised on PR #35
+Pro-backed Codex implementation environment: not yet behaviorally accepted
+GLM review-only integration: not yet behaviorally accepted
+M0 supervised delivery exit gate: NOT PASSED
+```
+
+## Current product classification
 
 ```text
 Development prototype with a verified install/auth baseline and partial regulatory capabilities.
@@ -88,7 +99,7 @@ Production ready: NO
 Regulated-customer ready: NO
 ```
 
-## Evidence required to change that classification
+## Evidence required to change the product classification
 
 1. Automated pull-request CI passes from a fresh checkout.
 2. Browser E2E proves authentication and critical protected flows.
@@ -100,7 +111,7 @@ Regulated-customer ready: NO
 8. Temporal recovery and human-approval behavior is proven.
 9. Staging deployment, rollback, backup, restore, logging, and alerting are proven.
 10. Security, privacy, and regulatory-position reviews are accepted.
-11. The supervised AI delivery loop passes a material, non-documentation Cascada issue with exact CI and independent-review evidence.
+11. The corrected supervised delivery loop passes a material, non-documentation Cascada issue with exact CI and independent-review evidence.
 
 ## Truth-maintenance rule
 
