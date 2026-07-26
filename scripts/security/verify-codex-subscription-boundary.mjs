@@ -12,11 +12,6 @@ const ALWAYS_FORBIDDEN_WORKFLOW_PATTERNS = [
       "GitHub workflows may not reference OPENAI_API_KEY in any letter case; product-runtime credentials belong in the application hosting boundary",
   },
   {
-    pattern: /\$\{\{\s*secrets(?:\.|\[)/i,
-    reason:
-      "GitHub workflows may not read repository secrets; software-development and product-runtime credentials belong outside GitHub Actions",
-  },
-  {
     pattern: /(?:^|[,{])\s*["']?secrets["']?\s*:/i,
     reason:
       "GitHub workflows may not declare reusable-workflow secrets or secret inheritance",
@@ -31,11 +26,6 @@ const ALWAYS_FORBIDDEN_WORKFLOW_PATTERNS = [
       /(?:^|[\s:,\[{])(?:&|\*)[A-Za-z_][A-Za-z0-9_-]*(?=$|[\s,}\]])/,
     reason:
       "GitHub workflows may not use YAML anchors or aliases because they can obscure secret inheritance and authority",
-  },
-  {
-    pattern: /api\.openai\.com/i,
-    reason:
-      "GitHub workflows may not call the OpenAI API directly for software-development work",
   },
   {
     pattern: /openai\/codex-action/i,
@@ -57,6 +47,19 @@ const ALWAYS_FORBIDDEN_WORKFLOW_PATTERNS = [
     pattern:
       /shans-ai-software-factory\/\.github\/workflows\/reusable-(?:implement|supervise)\.yml/i,
     reason: "retired API-backed implementation/supervision factory is referenced",
+  },
+];
+
+const NORMALIZED_FORBIDDEN_WORKFLOW_PATTERNS = [
+  {
+    pattern: /\$\{\{secrets(?:\.|\[)/i,
+    reason:
+      "GitHub workflows may not read repository secrets; software-development and product-runtime credentials belong outside GitHub Actions",
+  },
+  {
+    pattern: /api\.openai\.com/i,
+    reason:
+      "GitHub workflows may not call the OpenAI API directly for software-development work",
   },
 ];
 
@@ -96,14 +99,29 @@ function lineNumberFor(content, pattern) {
   return index < 0 ? null : index + 1;
 }
 
+function normalizedWorkflowText(content) {
+  return content
+    .split(/\r?\n/)
+    .filter((line) => !/^\s*#/.test(line))
+    .join("")
+    .replace(/\s+/g, "");
+}
+
 function inspectWorkflow(path, content) {
   const findings = [];
-  const normalized = path.replaceAll("\\", "/");
+  const normalizedPath = path.replaceAll("\\", "/");
 
   for (const rule of ALWAYS_FORBIDDEN_WORKFLOW_PATTERNS) {
     const line = lineNumberFor(content, rule.pattern);
     if (line != null) {
-      findings.push({ file: normalized, line, reason: rule.reason });
+      findings.push({ file: normalizedPath, line, reason: rule.reason });
+    }
+  }
+
+  const normalizedContent = normalizedWorkflowText(content);
+  for (const rule of NORMALIZED_FORBIDDEN_WORKFLOW_PATTERNS) {
+    if (rule.pattern.test(normalizedContent)) {
+      findings.push({ file: normalizedPath, line: null, reason: rule.reason });
     }
   }
 
