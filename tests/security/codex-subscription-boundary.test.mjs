@@ -163,17 +163,44 @@ test("rejects secret expressions and OpenAI endpoints split across block scalars
   });
 });
 
-test("rejects YAML anchors and aliases that can obscure authority", async () => {
+test("rejects encoded YAML characters that can hide forbidden authority", async () => {
+  await withRepository(async (root) => {
+    await writeWorkflow(root, "encoded.yml", [
+      "name: Encoded authority",
+      "on: workflow_dispatch",
+      "jobs:",
+      "  evaluate:",
+      "    runs-on: ubuntu-24.04",
+      "    env:",
+      '      TOKEN: "${{ se\\u0063rets.MODEL_TOKEN }}"',
+      '      ENDPOINT: "https://api.open\\u0061i.com/v1/responses"',
+    ]);
+
+    const findings = findingsFor(
+      await inspectCodexSubscriptionBoundary(root),
+      "encoded.yml",
+    );
+    assert.ok(
+      findings.some((finding) =>
+        finding.reason.includes("encoded YAML character escapes"),
+      ),
+    );
+  });
+});
+
+test("rejects alphabetic and numeric YAML anchors and aliases", async () => {
   await withRepository(async (root) => {
     await writeWorkflow(root, "anchor.yml", [
       "name: Anchored value",
       "on: workflow_dispatch",
       "x-mode: &all inherit",
+      "x-numeric: &1 inherit",
       "jobs:",
       "  publish:",
       "    runs-on: ubuntu-24.04",
       "    env:",
       "      MODE: *all",
+      "      OTHER_MODE: *1",
     ]);
 
     const findings = await inspectCodexSubscriptionBoundary(root);
