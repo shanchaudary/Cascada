@@ -205,9 +205,10 @@ Raw evidence remains in GitHub rather than being repeatedly relayed through chat
 
 ## Current implementation state
 
-- GitHub CI and protected-PR delivery are repository-defined.
-- The former API-key-backed `ai-implement.yml` and `ai-supervise.yml` paths are being removed.
-- Codex Pro account connection, environment setup, PR-context controls, and automatic PR review are account-level controls and must be exercised before M0 is accepted.
+- GitHub CI and protected-PR delivery are repository-defined and exercised.
+- The former API-key-backed `ai-implement.yml`, `ai-supervise.yml`, and `.ai-factory/project.json` are absent from PR #35's candidate head. They remain on `main` until that PR is explicitly approved and merged.
+- Pro-backed Codex GitHub review is behaviorally proven on PR #35 and has produced exact-head security findings.
+- A write-capable Codex cloud environment for implementation and repair is not yet configured or accepted.
 - Optional scheduled issue-queue automation is unaccepted until behaviorally proven.
 - GLM review-only automation without an OpenAI dependency remains to be verified.
 - Issue #12 remains the first bounded implementation proof.
