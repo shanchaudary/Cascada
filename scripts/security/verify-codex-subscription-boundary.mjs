@@ -22,10 +22,14 @@ const ALWAYS_FORBIDDEN_WORKFLOW_PATTERNS = [
       "GitHub workflows may not use an explicit YAML key for reusable-workflow secrets",
   },
   {
-    pattern:
-      /(?:^|[\s:,\[{])(?:&|\*)[A-Za-z_][A-Za-z0-9_-]*(?=$|[\s,}\]])/,
+    pattern: /(?:^|[\s:,\[{])(?:&|\*)[^\s,}\]\[{]+/,
     reason:
       "GitHub workflows may not use YAML anchors or aliases because they can obscure secret inheritance and authority",
+  },
+  {
+    pattern: /\\(?:x[0-9a-f]{2}|u[0-9a-f]{4}|U[0-9a-f]{8})/i,
+    reason:
+      "GitHub workflows may not use encoded YAML character escapes because they can obscure secret references or provider endpoints",
   },
   {
     pattern: /openai\/codex-action/i,
