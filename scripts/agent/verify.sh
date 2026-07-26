@@ -14,8 +14,9 @@ export LOG_LEVEL="${LOG_LEVEL:-warn}"
 npm run typecheck
 npm run lint -- --max-warnings=0
 npm test
+node --test tests/security/production-advisory-gate.test.mjs
 npx prisma validate
-npm audit --omit=dev --audit-level=high
+node scripts/security/audit-production.mjs
 npm run build
 
 printf 'Bounded agent verification passed. Service-backed integration and browser proof remain CI responsibilities.\n'
