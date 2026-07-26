@@ -37,7 +37,10 @@ export function buildProductionVersionMap(lockfile) {
   const versions = new Map();
   for (const [path, entry] of Object.entries(lockfile.packages)) {
     if (!path || !entry || typeof entry !== "object") continue;
-    if (entry.dev === true || entry.devOptional === true) continue;
+    // npm lockfile v3 marks strictly development-only packages with `dev`.
+    // `devOptional` means the package is also an optional dependency of a
+    // non-development dependency, so it remains part of the production tree.
+    if (entry.dev === true) continue;
     if (typeof entry.version !== "string" || entry.version.length === 0) continue;
     const name = packageNameFromLockPath(path, entry);
     if (!name) continue;
