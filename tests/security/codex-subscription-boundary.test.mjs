@@ -101,7 +101,10 @@ test("rejects non-allowlisted workflow credentials even when the workflow self-a
     ]);
 
     const findings = await inspectCodexSubscriptionBoundary(root);
-    assert.ok(findings.some((finding) => finding.reason.includes("not externally allowlisted")));
+    assert.ok(findings.length > 0);
+    assert.ok(
+      findings.some((finding) => finding.reason.includes("must not receive")),
+    );
   });
 });
 
